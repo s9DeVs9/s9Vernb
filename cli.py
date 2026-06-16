@@ -70,7 +70,7 @@ def type_line(text, delay=0.02):
     type_text(text, delay=delay, end="\n")
 
 
-def slow_type(text, delay=0.04):
+def slow_type(text, delay=0.2):
     """Slow dramatic typing."""
     type_text(text, delay=delay, end="\n")
 

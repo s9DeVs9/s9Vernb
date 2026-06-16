@@ -1,18 +1,22 @@
 # s9Vernb v2.0
 
-Multi-Platform Credential Validator — Outil de test de combolist avec interface graphique.
+Tool for testing the security of web applications and APIs. It is designed to help security professionals identify vulnerabilities and weaknesses in their systems.
 
-## ⚠️ Usage légal
+## ⚠️ Legal Disclaimer
 
-Cet outil est conçu **exclusivement** pour les tests d'intrusion et les audits de sécurité autorisés.
-L'utilisation non autorisée est illégale. Vous êtes seul responsable de votre utilisation.
+This tool is intended for educational purposes only. It should only be used on systems that you own or have explicit permission to test. Unauthorized use of this tool on systems without permission is illegal and can result in severe consequences.
 
 ## Installation
 
 ```bash
-# 1. Cloner ou télécharger les fichiers
-# 2. Installer les dépendances
-pip install aiohttp>=3.9.0
+# 1. Clone the repository 
+git clone https://github.com/s9DeVs9/s9Vernb.git
+# 2. Download the dependencies
+pip install -r requirements.txt
 
-# 3. Lancer l'application
+# 3. Run the tool
 python main.py
+``` 
+
+## Credit
+This tool was developed by [s9DeVs9](https://github.com/s9DeVs9).
