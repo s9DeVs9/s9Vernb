@@ -1,8 +1,3 @@
-"""Radare2 reverse engineering tool wrapper.
-
-Provides binary analysis, disassembly, and string extraction
-using the radare2 framework's command-line interface.
-"""
 
 import asyncio
 import shutil

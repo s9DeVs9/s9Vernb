@@ -1,8 +1,3 @@
-"""Binwalk firmware analysis wrapper.
-
-Provides firmware scanning, extraction, and comparison
-using the binwalk firmware analysis tool.
-"""
 
 import asyncio
 import shutil

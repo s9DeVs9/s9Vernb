@@ -1,2 +1,4 @@
 aiohttp>=3.9
 Pillow>=10.0
+pycryptodome>=3.20
+customtkinter>=5.2

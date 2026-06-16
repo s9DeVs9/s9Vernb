@@ -1,7 +1,3 @@
-"""
-Discord code checker — validates Nitro/Boost/Promo codes against Discord's API.
-Backoff exponentiel on HTTP 429, all codes returned with status.
-"""
 
 import asyncio
 import aiohttp
@@ -20,7 +16,6 @@ from modules.discord.generator import (
 logger = logging.getLogger("S9Checker")
 
 
-# ── Status enum ──────────────────────────────────────────────────────────────
 class CodeStatus(str, Enum):
     VALID   = "valid"
     INVALID = "invalid"
@@ -28,7 +23,6 @@ class CodeStatus(str, Enum):
     ERROR   = "error"
 
 
-# ── Result dataclass ─────────────────────────────────────────────────────────
 @dataclass
 class CodeResult:
     code: str
@@ -37,13 +31,7 @@ class CodeResult:
     promo_type: str = ""
 
 
-# ── Checker class ────────────────────────────────────────────────────────────
 class DiscordChecker:
-    """
-    Async Discord code checker.
-    Validates Nitro gift codes, promo codes, and boost links
-    against Discord's API endpoints.
-    """
 
     DISCORD_GIFT_API = "https://discordapp.com/api/v9/entitlements/codes"
     USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -72,10 +60,8 @@ class DiscordChecker:
     def results(self):
         return list(self._results)
 
-    # ── Check a single gift code ────────────────────────────────────────
     async def _check_gift_code(self, session: aiohttp.ClientSession,
                                code: str) -> CodeResult:
-        """Check a single Discord gift code."""
         if self._stop:
             return CodeResult(code, CodeStatus.ERROR, "Stopped")
 
@@ -105,10 +91,8 @@ class DiscordChecker:
         except Exception as e:
             return CodeResult(code, CodeStatus.ERROR, f"Error: {str(e)[:50]}")
 
-    # ── Check a promo code ──────────────────────────────────────────────
     async def _check_promo_code(self, session: aiohttp.ClientSession,
                                 code: str, promo_type: str) -> CodeResult:
-        """Check a Discord promo code using the gift code endpoint."""
         if self._stop:
             return CodeResult(code, CodeStatus.ERROR, "Stopped", promo_type)
 
@@ -143,15 +127,10 @@ class DiscordChecker:
             return CodeResult(code, CodeStatus.ERROR,
                               f"Error: {str(e)[:50]}", promo_type)
 
-    # ── Batch checker ───────────────────────────────────────────────────
     async def check_codes(self, codes: list[str], code_type: str = "gift",
                           promo_type: str = "Generic",
                           max_concurrent: int = 5,
                           progress_interval: float = 0.3):
-        """
-        Check a list of codes with backoff exponentiel on 429.
-        code_type: 'gift' | 'promo' | 'boost'
-        """
         self._stop = False
         self._results = []
         self._stats = {"valid": 0, "invalid": 0, "rate": 0, "errors": 0}
@@ -215,7 +194,6 @@ class DiscordChecker:
             tasks = [_check_one(code) for code in codes]
             await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Final update
         if self.progress_cb:
             elapsed = time.time() - start_time
             speed = completed / elapsed if elapsed > 0 else 0
@@ -232,12 +210,10 @@ class DiscordChecker:
                 "done": True,
             })
 
-    # ── Generate and check in batch ─────────────────────────────────────
     async def generate_and_check(self, count: int, code_type: str = "gift",
                                  promo_type: str = "Generic",
                                  length: int = 16,
                                  max_concurrent: int = 5):
-        """Generate random codes and check them immediately."""
         codes = []
         for _ in range(count):
             if code_type == "promo":

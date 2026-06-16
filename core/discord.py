@@ -1,12 +1,3 @@
-"""
-Discord Nitro / Boost / Promo code generator and checker for S9Checker.
-Generates random codes and validates them against Discord's API.
-
-Code formats:
-  - Nitro Gift:   https://discord.gift/XXXXXXXXXXXXXXXX (16-24 chars)
-  - Nitro Promo:  Specific codes from partner promotions (OperaGX, etc.)
-  - Server Boost: Gift links for server boosts
-"""
 
 import asyncio
 import aiohttp
@@ -21,7 +12,6 @@ from enum import Enum
 logger = logging.getLogger("S9Checker")
 
 
-# ── Status enum ──────────────────────────────────────────────────────────────
 class CodeStatus(str, Enum):
     VALID   = "valid"
     INVALID = "invalid"
@@ -29,7 +19,6 @@ class CodeStatus(str, Enum):
     ERROR   = "error"
 
 
-# ── Result dataclass ─────────────────────────────────────────────────────────
 @dataclass
 class CodeResult:
     code: str
@@ -38,23 +27,17 @@ class CodeResult:
     promo_type: str = ""
 
 
-# ── Character sets ───────────────────────────────────────────────────────────
-# Discord gift codes use base-62 (a-z, A-Z, 0-9)
 CODE_CHARS = string.ascii_letters + string.digits
 
 
-# ── Code generators ──────────────────────────────────────────────────────────
 def generate_nitro_code(length: int = 16) -> str:
-    """Generate a random Discord Nitro gift code."""
     return "".join(random.choices(CODE_CHARS, k=length))
 
 
 def generate_nitro_url(code: str) -> str:
-    """Wrap a code into a full Discord gift URL."""
     return f"https://discord.gift/{code}"
 
 
-# ── Known promo code prefixes/patterns ───────────────────────────────────────
 PROMO_TEMPLATES = {
     "OperaGX": {
         "prefix": "opera",
@@ -102,7 +85,6 @@ PROMO_TEMPLATES = {
 
 
 def generate_promo_code(promo_type: str = "Generic") -> str:
-    """Generate a promo code for a specific promotion type."""
     template = PROMO_TEMPLATES.get(promo_type, PROMO_TEMPLATES["Generic"])
     prefix = template["prefix"]
     remaining = template["length"] - len(prefix)
@@ -112,13 +94,7 @@ def generate_promo_code(promo_type: str = "Generic") -> str:
     return f"{prefix}{suffix}"
 
 
-# ── Checker class ────────────────────────────────────────────────────────────
 class DiscordChecker:
-    """
-    Async Discord code checker.
-    Validates Nitro gift codes, promo codes, and boost links
-    against Discord's API endpoints.
-    """
 
     DISCORD_GIFT_API = "https://discordapp.com/api/v9/entitlements/codes"
     DISCORD_PROMO_API = "https://discord.com/api/v9/promotions"
@@ -148,10 +124,8 @@ class DiscordChecker:
     def results(self):
         return list(self._results)
 
-    # ── Check a single gift code ────────────────────────────────────────
     async def _check_gift_code(self, session: aiohttp.ClientSession,
                                code: str) -> CodeResult:
-        """Check a single Discord gift code."""
         if self._stop:
             return CodeResult(code, CodeStatus.ERROR, "Stopped")
 
@@ -165,7 +139,6 @@ class DiscordChecker:
                 text = await resp.text()
 
                 if resp.status == 200:
-                    # Check if code is actually valid
                     if "message" not in text or "Unknown" not in text:
                         return CodeResult(code, CodeStatus.VALID, "Gift code is valid!")
                 elif resp.status == 429:
@@ -182,18 +155,11 @@ class DiscordChecker:
         except Exception as e:
             return CodeResult(code, CodeStatus.ERROR, f"Error: {str(e)[:50]}")
 
-    # ── Check a promo code ──────────────────────────────────────────────
     async def _check_promo_code(self, session: aiohttp.ClientSession,
                                 code: str, promo_type: str) -> CodeResult:
-        """
-        Check a Discord promo code.
-        Promo codes are validated using the same gift code endpoint
-        since they follow the same format.
-        """
         if self._stop:
             return CodeResult(code, CodeStatus.ERROR, "Stopped", promo_type)
 
-        # Use the gift code endpoint - promo codes are gift codes
         url = f"{self.DISCORD_GIFT_API}?code={code}"
         headers = {"User-Agent": self.USER_AGENT}
 
@@ -204,7 +170,6 @@ class DiscordChecker:
                 text = await resp.text()
 
                 if resp.status == 200:
-                    # Valid promo code
                     return CodeResult(code, CodeStatus.VALID,
                                       "Promo code is valid!", promo_type)
                 elif resp.status == 429:
@@ -226,15 +191,10 @@ class DiscordChecker:
             return CodeResult(code, CodeStatus.ERROR,
                               f"Error: {str(e)[:50]}", promo_type)
 
-    # ── Batch checker ───────────────────────────────────────────────────
     async def check_codes(self, codes: list[str], code_type: str = "gift",
                           promo_type: str = "Generic",
                           max_concurrent: int = 5,
                           progress_interval: float = 0.3):
-        """
-        Check a list of codes.
-        code_type: 'gift' | 'promo'
-        """
         self._stop = False
         self._results = []
         self._stats = {"valid": 0, "invalid": 0, "rate": 0, "errors": 0}
@@ -298,7 +258,6 @@ class DiscordChecker:
             tasks = [_check_one(code) for code in codes]
             await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Final update
         if self.progress_cb:
             elapsed = time.time() - start_time
             speed = completed / elapsed if elapsed > 0 else 0
@@ -315,12 +274,10 @@ class DiscordChecker:
                 "done": True,
             })
 
-    # ── Generate and check in batch ─────────────────────────────────────
     async def generate_and_check(self, count: int, code_type: str = "gift",
                                  promo_type: str = "Generic",
                                  length: int = 16,
                                  max_concurrent: int = 5):
-        """Generate random codes and check them immediately."""
         codes = []
         for _ in range(count):
             if code_type == "promo":

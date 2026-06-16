@@ -1,12 +1,3 @@
-"""
-Nmap network scanner wrapper.
-
-Wraps the nmap tool to provide port scanning, service detection,
-and OS fingerprinting capabilities for network reconnaissance.
-Supports SYN scans, version detection, and aggressive scans.
-
-Requires: nmap (https://nmap.org)
-"""
 
 import shutil
 import asyncio

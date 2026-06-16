@@ -1,12 +1,3 @@
-"""
-httpx HTTP probe wrapper.
-
-Wraps httpx to probe web servers for status codes, technology
-detection, and other HTTP properties. Useful for validating
-discovered subdomains and identifying running services.
-
-Requires: httpx (https://github.com/projectdiscovery/httpx)
-"""
 
 import shutil
 import asyncio

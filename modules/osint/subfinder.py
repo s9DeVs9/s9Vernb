@@ -1,12 +1,3 @@
-"""
-Subfinder subdomain enumeration wrapper.
-
-Wraps subfinder to discover valid subdomains for websites using
-passive online sources. Fast and noise-free, ideal for bug bounty
-reconnaissance and attack surface discovery.
-
-Requires: subfinder (https://github.com/projectdiscovery/subfinder)
-"""
 
 import shutil
 import asyncio

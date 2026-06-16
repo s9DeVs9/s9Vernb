@@ -1,12 +1,3 @@
-"""
-Amass subdomain enumeration wrapper.
-
-Wraps the Amass tool to provide subdomain discovery through
-active and passive enumeration techniques. Uses OSINT sources,
-brute forcing, and DNS resolution to map attack surfaces.
-
-Requires: amass (https://github.com/owasp-amass/amass)
-"""
 
 import shutil
 import asyncio

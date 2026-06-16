@@ -1,7 +1,3 @@
-"""
-Utility functions for S9Checker.
-Handles combo list parsing and proxy loading.
-"""
 
 import logging
 
@@ -9,7 +5,6 @@ logger = logging.getLogger("S9Checker")
 
 
 class ResultStatus:
-    """Possible outcomes for a single credential check."""
     VALID = "VALID"
     INVALID = "INVALID"
     ERROR = "ERROR"
@@ -19,11 +14,6 @@ class ResultStatus:
 
 
 def parse_combolist(filepath: str) -> list:
-    """
-    Parse a combolist file with email:password format.
-    Deduplicates entries and skips malformed lines.
-    Returns a list of (email, password) tuples.
-    """
     combos = []
     seen = set()
     line_count = 0
@@ -54,7 +44,6 @@ def parse_combolist(filepath: str) -> list:
 
 
 def load_proxies(filepath: str) -> list:
-    """Load a list of proxies from a text file (one per line)."""
     proxies = []
     try:
         with open(filepath, "r", encoding="utf-8") as f:

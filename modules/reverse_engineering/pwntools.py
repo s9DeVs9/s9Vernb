@@ -1,8 +1,3 @@
-"""Pwntools exploit development wrapper.
-
-Provides exploit execution, local testing, and template generation
-using pwntools via Python script execution.
-"""
 
 import asyncio
 import shutil
@@ -82,7 +77,6 @@ from pwn import *
 context.log_level = 'debug'
 context.arch = '{self._detect_arch(target_binary)}'
 p = process('{target_binary}')
-# Execute exploit
 exec(open('{exploit_script}').read())
 p.interactive()
 """
@@ -101,9 +95,7 @@ context.arch = 'amd64'
 context.log_level = 'info'
 
 def exploit():
-    # p = remote('challenge.example.com', 1337)
     p = process('./binary')
-    # Your exploit code here
     p.interactive()
 
 if __name__ == '__main__':
@@ -120,12 +112,8 @@ def exploit():
     elf = ELF('./binary')
     libc = ELF('/lib/x86_64-linux-gnu/libc.so.6')
 
-    # Find buffer overflow
-    offset = 72  # Adjust after pattern_create
+    offset = 72
 
-    # Leak libc address (requires info leak vulnerability)
-    # payload = flat(b'A' * offset, libc.sym.printf, libc.sym.main)
-    # p.sendline(payload)
 
     p.interactive()
 
@@ -145,7 +133,6 @@ def exploit():
     rop = ROP(elf)
     offset = 72
 
-    # Example: execve("/bin/sh")
     payload = flat(b'A' * offset, rop.find_gadget(['pop rdi', 'ret'])[0], next(elf.search(b'/bin/sh')), rop.find_gadget(['ret'])[0], elf.sym.system)
 
     p.sendline(payload)

@@ -1,17 +1,15 @@
-"""
-Results page - view saved results from previous test runs.
-"""
 
+import customtkinter as ctk
 import tkinter as tk
+from tkinter import filedialog, messagebox
 import os
 import sys
 
 from ui import theme as T
-from ui.widgets import Card, AccentButton
+from ui.widgets import Card, SlideButton
 
 
 class ResultsPage:
-    """Results viewer with tabs for different result files."""
 
     def __init__(self, app):
         self.app = app
@@ -20,62 +18,54 @@ class ResultsPage:
         self._build()
 
     def _build(self):
-        self.frame = tk.Frame(self.app.page_container, bg=T.BG_MAIN)
+        self.frame = ctk.CTkFrame(self.app.page_container, fg_color=T.BG_MAIN)
 
-        # Filter tabs
-        tab_row = tk.Frame(self.frame, bg=T.BG_MAIN)
+        tab_row = ctk.CTkFrame(self.frame, fg_color="transparent")
         tab_row.pack(fill="x", pady=(0, 8))
 
         self.tab_buttons = {}
-        filters = [("all", "All"), ("valid", "Valid"), ("results", "Results")]
+        filters = [("all", "All"), ("valid", "Valid"), ("errors", "Errors")]
         for key, label in filters:
-            btn = AccentButton(tab_row, label,
-                               command=lambda k=key: self._set_filter(k),
-                               color=T.FG if key == "all" else T.FG2)
+            btn = SlideButton(tab_row, label,
+                              command=lambda k=key: self._set_filter(k),
+                              color=T.FG if key == "all" else T.FG2,
+                              width=90)
             btn.pack(side="left", padx=(0, 6))
             self.tab_buttons[key] = btn
 
-        AccentButton(tab_row, "\U0001f4c1  Open Folder",
-                     command=self._open_folder).pack(side="right")
+        SlideButton(tab_row, "\U0001f4e5  Export", command=self._export,
+                    color=T.CYAN, width=110).pack(side="right")
 
-        # Results text area
+        SlideButton(tab_row, "\U0001f4c2  Open Folder", command=self._open_folder,
+                    color=T.FG2, width=120).pack(side="right", padx=(0, 8))
+
         results_card = Card(self.frame, title="RESULTS")
         results_card.pack(fill="both", expand=True, pady=(0, 10))
 
-        self.results_text = tk.Text(results_card, bg=T.INPUT_BG, fg=T.FG, font=T.FONT_MONO,
-                                    wrap="word", highlightthickness=0, bd=0,
-                                    state="disabled", padx=10, pady=6,
-                                    insertbackground=T.FG, selectbackground=T.FG2)
-        self.results_text.pack(fill="both", expand=True, pady=(0, 4))
-
-        for tag, color in [("valid", T.GREEN), ("invalid", T.RED),
-                           ("error", T.ORANGE), ("info", T.FG)]:
-            self.results_text.tag_config(tag, foreground=color)
+        self.results_text = ctk.CTkTextbox(results_card, font=T.FONT_MONO,
+                                            fg_color=T.INPUT_BG, text_color=T.FG,
+                                            border_color=T.INPUT_BORDER,
+                                            border_width=1, corner_radius=4,
+                                            wrap="word")
+        self.results_text.pack(fill="both", expand=True, pady=(4, 4))
 
     def _set_filter(self, filter_name):
         self.current_filter = filter_name
-        for key, btn in self.tab_buttons.items():
-            if key == filter_name:
-                btn.itemconfig(btn._text_id, fill=T.FG)
-            else:
-                btn.itemconfig(btn._text_id, fill=T.FG2)
         self._load_file()
 
     def _load_file(self):
         file_map = {
             "all": "results.txt",
             "valid": "hits.txt",
-            "results": "results.txt",
+            "errors": "results.txt",
         }
         filename = file_map.get(self.current_filter, "results.txt")
         filepath = os.path.join("results", filename)
 
-        self.results_text.config(state="normal")
         self.results_text.delete("1.0", "end")
 
         if not os.path.exists(filepath):
-            self.results_text.insert("end", "No results yet. Run a test first.\n", "info")
-            self.results_text.config(state="disabled")
+            self.results_text.insert("end", "No results yet. Run a test first.\n")
             return
 
         try:
@@ -84,20 +74,13 @@ class ResultsPage:
                     line = line.strip()
                     if not line:
                         continue
-                    if "VALID" in line:
-                        tag = "valid"
-                    elif "INVALID" in line:
-                        tag = "invalid"
-                    elif "ERROR" in line or "TIMEOUT" in line:
-                        tag = "error"
-                    else:
-                        tag = "info"
-                    self.results_text.insert("end", line + "\n", tag)
+                    if self.current_filter == "errors" and "VALID" in line:
+                        continue
+                    self.results_text.insert("end", line + "\n")
         except Exception as e:
-            self.results_text.insert("end", f"Error reading file: {e}\n", "error")
+            self.results_text.insert("end", f"Error reading file: {e}\n")
 
         self.results_text.see("end")
-        self.results_text.config(state="disabled")
 
     def _open_folder(self):
         results_dir = "results"
@@ -109,6 +92,43 @@ class ResultsPage:
             os.system(f"open {results_dir}")
         else:
             os.system(f"xdg-open {results_dir}")
+
+    def _export(self):
+        results_dir = "results"
+        if not os.path.exists(results_dir):
+            try:
+                messagebox.showinfo("Export", "No results to export.")
+            except (KeyboardInterrupt, tk.TclError):
+                pass
+            return
+
+        filepath = filedialog.asksaveasfilename(
+            title="Export results",
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt")],
+            initialfile="results_export.txt"
+        )
+        if not filepath:
+            return
+
+        results_file = os.path.join(results_dir, "results.txt")
+        if not os.path.exists(results_file):
+            return
+
+        try:
+            with open(results_file, "r", encoding="utf-8") as f:
+                content = f.read()
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(content)
+            try:
+                messagebox.showinfo("Export", f"Results exported to:\n{filepath}")
+            except (KeyboardInterrupt, tk.TclError):
+                pass
+        except Exception as e:
+            try:
+                messagebox.showerror("Export Error", f"Failed to export:\n{e}")
+            except (KeyboardInterrupt, tk.TclError):
+                pass
 
     def refresh(self):
         if self.current_filter:

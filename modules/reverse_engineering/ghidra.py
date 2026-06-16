@@ -1,8 +1,3 @@
-"""Ghidra reverse engineering tool wrapper.
-
-Provides headless analysis, decompilation, and export capabilities
-using Ghidra's analyzeHeadless command-line interface.
-"""
 
 import asyncio
 import shutil

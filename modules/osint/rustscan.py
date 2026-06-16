@@ -1,12 +1,3 @@
-"""
-RustScan fast port scanner wrapper.
-
-Wraps rustscan to provide fast port scanning with automatic
-integration to Nmap for detailed scanning. RustScan detects
-open ports quickly, then pipes them to Nmap for service detection.
-
-Requires: rustscan (https://github.com/RustScan/RustScan)
-"""
 
 import shutil
 import asyncio

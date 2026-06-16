@@ -1,8 +1,3 @@
-"""
-CLI launcher for S9Checker.
-ASCII art banner + interactive terminal menu with ANSI colors.
-Features: typing animation, dark noir theme, proxy/IP generator.
-"""
 
 import os
 import sys
@@ -12,33 +7,31 @@ import random
 import string
 import ctypes
 import threading
+import socket
+import select
+import struct
+import base64
 
-# Fix Windows console encoding for Unicode output
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
-# Enable ANSI escape code support on Windows
 kernel32 = ctypes.windll.kernel32
 kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
 
 
-# ── Dark noir ANSI palette (zero green) ─────────────────────────────────────
 class C:
-    """Dark noir ANSI colors — cyberpunk, no green."""
     RESET   = "\033[0m"
     BOLD    = "\033[1m"
     DIM     = "\033[2m"
     ITALIC  = "\033[3m"
     UNDERL  = "\033[4m"
 
-    # Dark base (30-37)
     BLACK   = "\033[30m"
     DK_RED  = "\033[31m"
     DK_MAG  = "\033[35m"
     DK_CYN  = "\033[36m"
     GRAY    = "\033[37m"
 
-    # Bright accents (90-97)
     RED     = "\033[91m"
     MAGENTA = "\033[95m"
     CYAN    = "\033[96m"
@@ -48,9 +41,7 @@ class C:
     DK_YEL  = "\033[33m"
 
 
-# ── Typing animation ─────────────────────────────────────────────────────────
-def type_text(text, delay=0.015, end="\n"):
-    """Print text character by character."""
+def type_text(text, delay=0.005, end="\n"):
     try:
         for ch in text:
             sys.stdout.write(ch)
@@ -65,27 +56,25 @@ def type_text(text, delay=0.015, end="\n"):
         raise
 
 
-def type_line(text, delay=0.02):
-    """Type a line then newline."""
+def type_line(text, delay=0.008):
     type_text(text, delay=delay, end="\n")
 
 
-def slow_type(text, delay=0.2):
-    """Slow dramatic typing."""
+def slow_type(text, delay=0.06):
     type_text(text, delay=delay, end="\n")
 
 
-# ── Module imports ───────────────────────────────────────────────────────────
 from modules.utils.combolist import ComboList, scan_combolists
 from modules.utils.config import RESULTS_DIR
 
-# ── Raw strings (no ANSI) for animation ──────────────────────────────────────
 BANNER_RAW = r"""
- .▄▄ · ▄▄▄▄▄            ▄▄▌
- ▐█ ▀. •██  ▪     ▪     ██•
- ▄▀▀▀█▄ ▐█.▪ ▄█▀▄  ▄█▀▄ ██▪
- ▐█▄▪▐█ ▐█▌·▐█▌.▐▌▐█▌.▐▌▐█▌▐▌
-  ▀▀▀▀  ▀▀▀  ▀█▄▀▪ ▀█▄▀▪.▀▀▀"""
+         __   __  __                        __        
+       /'_ `\/\ \/\ \                      /\ \       
+  ____/\ \L\ \ \ \ \ \     __   _ __    ___\ \ \____  
+ /',__\ \___, \ \ \ \ \  /'__`\/\`'__\/' _ `\ \ '__`\ 
+/\__, `\/__,/\ \ \ \_/ \/\  __/\ \ \/ /\ \/\ \ \ \L\ \
+\/\____/    \ \_\ `\___/\ \____\\ \_\ \ \_\ \_\ \_,__/
+ \/___/      \/_/`\/__/  \/____/ \/_/  \/_/\/_/\/___/"""
 
 MENU_PAGE1 = [
     "  {cyan}{bold}[1]{reset} Launch GUI",
@@ -141,7 +130,6 @@ def clear_screen():
 
 
 def _fmt_banner():
-    """Return colored banner string."""
     return (
         f"{C.DK_MAG}{C.BOLD}{BANNER_RAW}{C.RESET}\n"
         f"{C.GRAY}{C.DIM}                    v2.0{C.RESET}\n"
@@ -150,7 +138,6 @@ def _fmt_banner():
 
 
 def _fmt_menu(page=1):
-    """Return colored menu string for given page."""
     pages = {1: MENU_PAGE1, 2: MENU_PAGE2, 3: MENU_PAGE3, 4: MENU_PAGE4}
     items = pages.get(page, MENU_PAGE1)
     lines = []
@@ -160,7 +147,6 @@ def _fmt_menu(page=1):
         )
         lines.append(line)
 
-    # Footer with navigation
     nav_parts = []
     if page > 1:
         nav_parts.append(f"{C.DK_CYN}{C.BOLD}[B]{C.RESET} Back")
@@ -192,7 +178,6 @@ def prompt():
 
 
 def safe_input(label):
-    """Input that handles Ctrl+C."""
     try:
         return input(f"  {label}").strip()
     except (KeyboardInterrupt, EOFError):
@@ -201,57 +186,49 @@ def safe_input(label):
 
 
 def press_enter():
-    """Safe press enter."""
     try:
         input(f"\n  {C.GRAY}{C.DIM}Press Enter...{C.RESET}")
     except (KeyboardInterrupt, EOFError):
         print()
 
 
-# ── Animated startup (one-time) ─────────────────────────────────────────────
 _first_run = True
 
 
 def animated_startup():
-    """Boot sequence animation — only on first launch."""
     global _first_run
     clear_screen()
 
-    # Boot text
-    slow_type(f"  {C.DK_MAG}S9Checker v2.0{C.RESET}", delay=0.03)
-    time.sleep(0.15)
-    type_line(f"  {C.GRAY}Initializing modules...{C.RESET}", delay=0.015)
+    slow_type(f"  {C.DK_MAG}S9Checker v2.0{C.RESET}", delay=0.01)
+    time.sleep(0.05)
+    type_line(f"  {C.GRAY}Initializing modules...{C.RESET}", delay=0.005)
+    time.sleep(0.03)
+    type_line(f"  {C.DK_CYN}>> Ready{C.RESET}", delay=0.008)
     time.sleep(0.1)
-    type_line(f"  {C.DK_CYN}>> Ready{C.RESET}", delay=0.025)
-    time.sleep(0.4)
     clear_screen()
 
-    # Banner line by line
     for line in BANNER_RAW.split("\n"):
         if line.strip():
-            type_text(f"{C.DK_MAG}{C.BOLD}{line}{C.RESET}", delay=0.008, end="\n")
-            time.sleep(0.06)
+            type_text(f"{C.DK_MAG}{C.BOLD}{line}{C.RESET}", delay=0.003, end="\n")
+            time.sleep(0.015)
         else:
             print()
-    type_line(f"{C.GRAY}{C.DIM}                    v2.0{C.RESET}", delay=0.01)
-    type_line(f"{C.DK_MAG}{'─' * 50}{C.RESET}", delay=0.005)
-    time.sleep(0.15)
+    type_line(f"{C.GRAY}{C.DIM}                    v2.0{C.RESET}", delay=0.005)
+    type_line(f"{C.DK_MAG}{'─' * 50}{C.RESET}", delay=0.002)
+    time.sleep(0.05)
 
-    # Menu line by line (page 1)
     print()
     for raw in MENU_PAGE1:
         line = raw.format(cyan=C.DK_CYN, bold=C.BOLD, reset=C.RESET)
-        type_text(line, delay=0.008, end="\n")
-        time.sleep(0.08)
-    # Navigation footer
+        type_text(line, delay=0.003, end="\n")
+        time.sleep(0.02)
     nav = f"\n  {C.DK_CYN}{C.BOLD}[N]{C.RESET} Next page    {C.DK_CYN}{C.BOLD}[0]{C.RESET} Exit"
-    type_text(nav, delay=0.008, end="\n")
+    type_text(nav, delay=0.003, end="\n")
     print()
 
     _first_run = False
 
 
-# ── Option 1: Launch GUI ────────────────────────────────────────────────────
 def option_launch_gui():
     type_line(f"\n  {C.DK_CYN}Initializing GUI...{C.RESET}", delay=0.03)
     try:
@@ -266,7 +243,6 @@ def option_launch_gui():
         type_line(f"  {C.DK_RED}Error: {e}{C.RESET}")
 
 
-# ── Option 2: Manage Combolists ──────────────────────────────────────────────
 def option_manage_combolists():
     clear_screen()
     print_banner()
@@ -337,7 +313,6 @@ def option_manage_combolists():
             press_enter()
 
 
-# ── Option 3: Quick Check ───────────────────────────────────────────────────
 def option_quick_check():
     clear_screen()
     print_banner()
@@ -426,7 +401,6 @@ def option_quick_check():
     press_enter()
 
 
-# ── Option 4: View Results ──────────────────────────────────────────────────
 def option_view_results():
     clear_screen()
     print_banner()
@@ -468,7 +442,6 @@ def option_view_results():
     press_enter()
 
 
-# ── Option 5: Settings ──────────────────────────────────────────────────────
 def option_settings():
     clear_screen()
     print_banner()
@@ -486,7 +459,6 @@ def option_settings():
     press_enter()
 
 
-# ── Option 6: Proxy / IP Generator ──────────────────────────────────────────
 def _random_ip():
     first = random.choice([i for i in range(1, 224) if i != 127])
     return f"{first}.{random.randint(0,255)}.{random.randint(0,255)}.{random.randint(1,254)}"
@@ -517,6 +489,7 @@ def option_proxy_generator():
     print(f"  {C.DK_CYN}[3]{C.RESET} Generate HTTP proxies (ip:port)")
     print(f"  {C.DK_CYN}[4]{C.RESET} Generate mixed proxy list")
     print(f"  {C.DK_CYN}[5]{C.RESET} Import & validate existing proxy file")
+    print(f"  {C.DK_CYN}[6]{C.RESET} Start rotation proxy server")
     print(f"  {C.DK_CYN}[B]{C.RESET} Back to menu")
     print()
 
@@ -534,6 +507,8 @@ def option_proxy_generator():
         _gen_mixed_proxies()
     elif choice == "5":
         _import_validate_proxies()
+    elif choice == "6":
+        _start_proxy_rotation_server()
     else:
         type_line(f"  {C.DK_RED}Invalid option.{C.RESET}")
         press_enter()
@@ -698,9 +673,219 @@ def _import_validate_proxies():
     press_enter()
 
 
-# ── Option 7: Discord Nitro Generator + Checker ─────────────────────────────
+def _start_proxy_rotation_server():
+    filepath = safe_input(f"{C.GRAY}Proxy file path: {C.RESET}").strip().strip('"')
+    if not filepath or not os.path.exists(filepath):
+        type_line(f"  {C.DK_RED}File not found.{C.RESET}")
+        press_enter()
+        return
+
+    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+        raw_lines = [l.strip() for l in f if l.strip()]
+
+    proxies = []
+    for line in raw_lines:
+        parts = line.split(":")
+        if len(parts) >= 2:
+            proxies.append({"host": parts[0], "port": int(parts[1]),
+                            "user": parts[2] if len(parts) > 2 else None,
+                            "pass": parts[3] if len(parts) > 3 else None,
+                            "raw": line})
+
+    if not proxies:
+        type_line(f"  {C.DK_RED}No valid proxies found.{C.RESET}")
+        press_enter()
+        return
+
+    port_str = safe_input(f"{C.GRAY}Local server port (default 8888): {C.RESET}")
+    listen_port = int(port_str) if port_str.isdigit() and int(port_str) > 0 else 8888
+
+    type_line(f"\n  {C.DK_CYN}Starting rotation proxy server...{C.RESET}")
+    type_line(f"  {C.GRAY}Proxies loaded: {len(proxies)}{C.RESET}")
+    type_line(f"  {C.GRAY}Listening on: 127.0.0.1:{listen_port}{C.RESET}")
+    type_line(f"  {C.GRAY}Press Ctrl+C to stop{C.RESET}\n")
+
+    proxy_index = [0]
+    stats = {"requests": 0, "errors": 0}
+    lock = threading.Lock()
+
+    def _get_next_proxy():
+        p = proxies[proxy_index[0] % len(proxies)]
+        proxy_index[0] = (proxy_index[0] + 1) % len(proxies)
+        return p
+
+    def _handle_client(client_sock, addr):
+        try:
+            data = client_sock.recv(4096)
+            if not data:
+                client_sock.close()
+                return
+
+            first_line = data.split(b"\r\n")[0].decode("utf-8", errors="ignore")
+            method = first_line.split(" ")[0] if first_line else ""
+
+            if method == "CONNECT":
+                _handle_connect(client_sock, data, addr)
+            else:
+                _handle_http(client_sock, data, addr)
+
+            with lock:
+                stats["requests"] += 1
+        except Exception:
+            with lock:
+                stats["errors"] += 1
+        finally:
+            try:
+                client_sock.close()
+            except Exception:
+                pass
+
+    def _handle_connect(client_sock, data, addr):
+        parts = data.split(b"\r\n")[0].split(b" ")
+        target = parts[1].decode("utf-8", errors="ignore")
+        if ":" in target:
+            host, port = target.rsplit(":", 1)
+            port = int(port)
+        else:
+            host = target
+            port = 443
+
+        proxy = _get_next_proxy()
+        try:
+            remote = socket.create_connection((proxy["host"], proxy["port"]), timeout=10)
+
+            connect_req = f"CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n"
+            if proxy["user"]:
+                cred = base64.b64encode(f"{proxy['user']}:{proxy['pass']}".encode()).decode()
+                connect_req += f"Proxy-Authorization: Basic {cred}\r\n"
+            connect_req += "\r\n"
+            remote.sendall(connect_req.encode())
+
+            resp = remote.recv(4096)
+            if b"200" in resp.split(b"\r\n")[0]:
+                client_sock.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                _tunnel(client_sock, remote)
+            else:
+                client_sock.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+            remote.close()
+        except Exception:
+            try:
+                client_sock.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+            except Exception:
+                pass
+
+    def _handle_http(client_sock, data, addr):
+        first_line = data.split(b"\r\n")[0].decode("utf-8", errors="ignore")
+        parts = first_line.split(" ")
+        if len(parts) < 3:
+            client_sock.sendall(b"HTTP/1.1 400 Bad Request\r\n\r\n")
+            return
+
+        url = parts[1]
+        if url.startswith("http://"):
+            url_path = url[7:]
+            if "/" in url_path:
+                host_port, path = url_path.split("/", 1)
+                path = "/" + path
+            else:
+                host_port = url_path
+                path = "/"
+        else:
+            client_sock.sendall(b"HTTP/1.1 400 Bad Request\r\n\r\n")
+            return
+
+        if ":" in host_port:
+            host, port = host_port.rsplit(":", 1)
+            port = int(port)
+        else:
+            host = host_port
+            port = 80
+
+        proxy = _get_next_proxy()
+        try:
+            remote = socket.create_connection((proxy["host"], proxy["port"]), timeout=10)
+
+            new_request = data.replace(f"http://{host_port}{path}".encode(),
+                                       path.encode(), 1)
+            if proxy["user"]:
+                cred = base64.b64encode(f"{proxy['user']}:{proxy['pass']}".encode()).decode()
+                new_request = new_request.replace(b"\r\n\r\n",
+                    f"\r\nProxy-Authorization: Basic {cred}\r\n\r\n".encode(), 1)
+
+            remote.sendall(new_request)
+            _tunnel(client_sock, remote)
+            remote.close()
+        except Exception:
+            try:
+                client_sock.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+            except Exception:
+                pass
+
+    def _tunnel(sock1, sock2):
+        sockets = [sock1, sock2]
+        timeout = 60
+        while True:
+            try:
+                readable, _, exceptional = select.select(sockets, [], sockets, timeout)
+                if exceptional:
+                    break
+                if not readable:
+                    break
+                for s in readable:
+                    other = sock2 if s is sock1 else sock1
+                    data = s.recv(8192)
+                    if not data:
+                        return
+                    other.sendall(data)
+            except Exception:
+                break
+
+    server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server_sock.settimeout(1.0)
+    try:
+        server_sock.bind(("127.0.0.1", listen_port))
+        server_sock.listen(100)
+    except OSError as e:
+        type_line(f"  {C.DK_RED}Failed to bind: {e}{C.RESET}")
+        press_enter()
+        return
+
+    type_line(f"  {C.DK_CYN}Server running on 127.0.0.1:{listen_port}{C.RESET}")
+    type_line(f"  {C.GRAY}Use this as your proxy: 127.0.0.1:{listen_port}{C.RESET}\n")
+
+    running = [True]
+
+    def _status_printer():
+        while running[0]:
+            time.sleep(5)
+            if running[0]:
+                with lock:
+                    print(f"  {C.GRAY}[stats] requests={stats['requests']} errors={stats['errors']} "
+                          f"next_proxy={proxy_index[0] % len(proxies)}/{len(proxies)}{C.RESET}")
+
+    status_thread = threading.Thread(target=_status_printer, daemon=True)
+    status_thread.start()
+
+    try:
+        while True:
+            try:
+                client_sock, addr = server_sock.accept()
+                t = threading.Thread(target=_handle_client, args=(client_sock, addr), daemon=True)
+                t.start()
+            except socket.timeout:
+                continue
+    except KeyboardInterrupt:
+        running[0] = False
+        type_line(f"\n  {C.DK_MAG}Server stopped.{C.RESET}")
+        type_line(f"  {C.GRAY}Total requests: {stats['requests']} | Errors: {stats['errors']}{C.RESET}")
+    finally:
+        server_sock.close()
+
+    press_enter()
+
+
 def option_nitro_generator():
-    """Generate and check Discord Nitro gift codes."""
     clear_screen()
     print_banner()
     type_line(f"  {C.DK_MAG}{C.BOLD}DISCORD NITRO GENERATOR + CHECKER{C.RESET}", delay=0.02)
@@ -790,7 +975,6 @@ def option_nitro_generator():
                       f"{C.GRAY}{stats['invalid']} invalid{C.RESET} / "
                       f"{C.DK_RED}{stats['errors']} errors{C.RESET}")
 
-            # Show ALL codes with status
             if checker.results:
                 type_line(f"\n  {C.DK_CYN}{C.BOLD}ALL CHECKED CODES:{C.RESET}")
                 for r in checker.results:
@@ -853,7 +1037,6 @@ def option_nitro_generator():
                       f"{C.GRAY}{stats['invalid']} invalid{C.RESET} / "
                       f"{C.DK_RED}{stats['errors']} errors{C.RESET}")
 
-            # Show ALL codes with status
             if checker.results:
                 type_line(f"\n  {C.DK_CYN}{C.BOLD}ALL CHECKED CODES:{C.RESET}")
                 for r in checker.results:
@@ -874,9 +1057,7 @@ def option_nitro_generator():
         press_enter()
 
 
-# ── Option 8: Discord Boost Generator + Checker ──────────────────────────────
 def option_boost_generator():
-    """Generate and check Discord server boost gift codes."""
     clear_screen()
     print_banner()
     type_line(f"  {C.DK_MAG}{C.BOLD}DISCORD BOOST GENERATOR + CHECKER{C.RESET}", delay=0.02)
@@ -961,7 +1142,6 @@ def option_boost_generator():
                       f"{C.GRAY}{stats['invalid']} invalid{C.RESET} / "
                       f"{C.DK_RED}{stats['errors']} errors{C.RESET}")
 
-            # Show ALL codes with status
             if checker.results:
                 type_line(f"\n  {C.DK_CYN}{C.BOLD}ALL CHECKED CODES:{C.RESET}")
                 for r in checker.results:
@@ -982,9 +1162,7 @@ def option_boost_generator():
         press_enter()
 
 
-# ── Option 9: Nitro Promo Codes ─────────────────────────────────────────────
 def option_promo_generator():
-    """Generate and check Nitro promo codes from partner promotions."""
     clear_screen()
     print_banner()
     type_line(f"  {C.DK_MAG}{C.BOLD}NITRO PROMO CODES (OperaGX, etc.){C.RESET}", delay=0.02)
@@ -1051,7 +1229,6 @@ def option_promo_generator():
                           f"{C.GRAY}{stats['invalid']} invalid{C.RESET} / "
                           f"{C.DK_RED}{stats['errors']} errors{C.RESET}")
 
-                # Show ALL codes with status
                 if checker.results:
                     type_line(f"\n  {C.DK_CYN}{C.BOLD}ALL CHECKED CODES:{C.RESET}")
                     for r in checker.results:
@@ -1100,7 +1277,6 @@ def option_promo_generator():
                 print(f"\n    {C.DK_CYN}{stats['valid']} valid{C.RESET} / "
                       f"{C.GRAY}{stats['invalid']} invalid{C.RESET}")
 
-                # Show ALL codes for this promo type
                 if checker.results:
                     for r in checker.results:
                         if r.status.value == "valid":
@@ -1117,9 +1293,7 @@ def option_promo_generator():
         press_enter()
 
 
-# ── Option 10: Website Scraper ──────────────────────────────────────────────
 def option_web_scraper():
-    """Scrape and clone a website's HTML, CSS, and JS files."""
     clear_screen()
     print_banner()
     type_line(f"  {C.DK_MAG}{C.BOLD}WEBSITE SCRAPER / CLONER{C.RESET}", delay=0.02)
@@ -1165,9 +1339,7 @@ def option_web_scraper():
     press_enter()
 
 
-# ── Option 11: Reverse Shell Builder ────────────────────────────────────────
 def option_reverse_shell():
-    """Build and manage reverse shell server/client."""
     clear_screen()
     print_banner()
     type_line(f"  {C.DK_MAG}{C.BOLD}REVERSE SHELL BUILDER{C.RESET}", delay=0.02)
@@ -1188,7 +1360,6 @@ def option_reverse_shell():
         return
 
     if choice == "1":
-        # Build server
         filename = safe_input(f"{C.GRAY}Server filename (default: server.exe): {C.RESET}")
         if not filename:
             filename = "server.exe"
@@ -1206,7 +1377,6 @@ def option_reverse_shell():
         press_enter()
 
     elif choice == "2":
-        # Build client
         filename = safe_input(f"{C.GRAY}Client filename (default: client.exe): {C.RESET}")
         if not filename:
             filename = "client.exe"
@@ -1224,7 +1394,6 @@ def option_reverse_shell():
         press_enter()
 
     elif choice == "3":
-        # Run server
         port_str = safe_input(f"{C.GRAY}Listen port (default 4444): {C.RESET}")
         port = int(port_str) if port_str.isdigit() else 4444
 
@@ -1243,7 +1412,6 @@ def option_reverse_shell():
         thread = threading.Thread(target=run_server_thread, daemon=True)
         thread.start()
 
-        # Interactive command loop
         try:
             while True:
                 cmd = safe_input(f"{C.DK_MAG}shell>{C.RESET} ")
@@ -1258,7 +1426,6 @@ def option_reverse_shell():
         press_enter()
 
     elif choice == "4":
-        # Run client
         host = safe_input(f"{C.GRAY}Server IP: {C.RESET}").strip()
         if not host:
             type_line(f"  {C.DK_RED}No IP provided.{C.RESET}")
@@ -1282,9 +1449,7 @@ def option_reverse_shell():
         press_enter()
 
 
-# ── Generic OSINT tool handler (options 12-18) ──────────────────────────────
 def option_osint_tool(tool_wrapper_class, tool_name):
-    """Generic handler for OSINT tools: nmap, masscan, rustscan, amass, subfinder, httpx, theHarvester."""
     tool = tool_wrapper_class()
 
     clear_screen()
@@ -1302,7 +1467,6 @@ def option_osint_tool(tool_wrapper_class, tool_name):
     type_line(f"  {C.GRAY}{tool.DESCRIPTION}{C.RESET}")
     print()
 
-    # Collect parameters based on tool type
     target = safe_input(f"{C.GRAY}Target (IP/hostname/domain): {C.RESET}").strip()
     if not target:
         type_line(f"  {C.DK_RED}No target provided.{C.RESET}")
@@ -1347,9 +1511,7 @@ def option_osint_tool(tool_wrapper_class, tool_name):
     press_enter()
 
 
-# ── Generic exploit tool handler (options 19-28) ────────────────────────────
 def option_exploit_tool(tool_wrapper_class, tool_name):
-    """Generic handler for exploit/post-exploitation tools."""
     tool = tool_wrapper_class()
 
     clear_screen()
@@ -1412,9 +1574,7 @@ def option_exploit_tool(tool_wrapper_class, tool_name):
     press_enter()
 
 
-# ── Generic reverse engineering tool handler (options 29-33) ─────────────────
 def option_re_tool(tool_wrapper_class, tool_name):
-    """Generic handler for reverse engineering tools."""
     tool = tool_wrapper_class()
 
     clear_screen()
@@ -1476,9 +1636,7 @@ def option_re_tool(tool_wrapper_class, tool_name):
     press_enter()
 
 
-# ── About ────────────────────────────────────────────────────────────────────
 def option_about():
-    """Show about page with contact info."""
     clear_screen()
     print_banner()
     type_line(f"  {C.DK_MAG}{C.BOLD}ABOUT S9CHECKER{C.RESET}", delay=0.02)
@@ -1494,7 +1652,6 @@ def option_about():
     press_enter()
 
 
-# ── Main CLI loop ────────────────────────────────────────────────────────────
 def run_cli():
     global _first_run
     current_page = 1
@@ -1510,7 +1667,6 @@ def run_cli():
 
             choice = prompt()
 
-            # ── Page navigation ──────────────────────────────────────────
             if choice.lower() == "n" and current_page < 4:
                 current_page += 1
                 continue
@@ -1518,7 +1674,6 @@ def run_cli():
                 current_page -= 1
                 continue
 
-            # ── Page 1 tools ─────────────────────────────────────────────
             if current_page == 1:
                 if choice == "1":
                     option_launch_gui()
@@ -1547,7 +1702,6 @@ def run_cli():
                     type_line(f"  {C.DK_RED}Invalid option. Try again.{C.RESET}")
                     time.sleep(0.8)
 
-            # ── Page 2 tools ─────────────────────────────────────────────
             elif current_page == 2:
                 if choice == "11":
                     option_reverse_shell()
@@ -1585,7 +1739,6 @@ def run_cli():
                     type_line(f"  {C.DK_RED}Invalid option. Try again.{C.RESET}")
                     time.sleep(0.8)
 
-            # ── Page 3 tools ─────────────────────────────────────────────
             elif current_page == 3:
                 if choice == "21":
                     from modules.exploit.impacket import SecretsDumpWrapper
@@ -1624,7 +1777,6 @@ def run_cli():
                     type_line(f"  {C.DK_RED}Invalid option. Try again.{C.RESET}")
                     time.sleep(0.8)
 
-            # ── Page 4 tools ─────────────────────────────────────────────
             elif current_page == 4:
                 if choice == "31":
                     from modules.reverse_engineering.pwndbg import ToolWrapper

@@ -1,8 +1,3 @@
-"""
-S9Checker v2.0 - Entry Point
-Run with:     python main.py        → CLI menu
-              python main.py --gui  → Direct GUI launch
-"""
 
 import os
 import sys
@@ -21,17 +16,15 @@ def main():
 
     try:
         if "--gui" in sys.argv:
-            # Direct GUI launch
-            import tkinter as tk
+            import customtkinter as ctk
             from ui.app import App
-            root = tk.Tk()
+            root = ctk.CTk()
             app = App(root)
             try:
                 root.mainloop()
             except KeyboardInterrupt:
                 app._on_close()
         else:
-            # CLI menu
             from cli import run_cli
             run_cli()
     except KeyboardInterrupt:

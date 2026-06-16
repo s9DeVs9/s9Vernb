@@ -1,12 +1,3 @@
-"""
-Masscan fast port scanner wrapper.
-
-Wraps masscan to provide ultra-fast port scanning capabilities.
-Masscan can scan the entire Internet in under 5 minutes using
-asynchronous SYN packets and custom TCP/IP stacks.
-
-Requires: masscan (https://github.com/robertdavidgraham/masscan)
-"""
 
 import shutil
 import asyncio

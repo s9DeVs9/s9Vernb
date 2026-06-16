@@ -1,8 +1,3 @@
-"""GDB + pwndbg debugger wrapper.
-
-Provides debugging, core dump analysis, and memory inspection
-using GDB with pwndbg extensions.
-"""
 
 import asyncio
 import shutil

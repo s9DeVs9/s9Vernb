@@ -1,9 +1,5 @@
-"""
-Main application window for S9Checker.
-Glass effect: blurred desktop background with dark overlay panels.
-Custom titlebar with Alt+Tab support via Windows API.
-"""
 
+import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import asyncio
@@ -12,71 +8,227 @@ import time
 import os
 import sys
 import logging
-import platform as _platform
+import queue
+import socket
+import select
+import base64
+import random
+import string
 
 from core import (
     PLATFORMS, CredentialChecker, ResultsManager,
     parse_combolist, load_proxies, ResultStatus
 )
 from ui import theme as T
-from ui.glass import capture_desktop_blur
-from ui.widgets import SidebarButton, AccentButton
+from ui.widgets import SidebarButton
 
 logger = logging.getLogger("S9Checker")
 
-# Windows API constants for Alt+Tab fix
-GWL_EXSTYLE = -20
-WS_EX_APPWINDOW = 0x00040000
 
+class RotationProxyServer:
 
-def _fix_alt_tab(root):
-    """Re-add window to taskbar/Alt+Tab after overrideredirect(True)."""
-    if _platform.system() != "Windows":
-        return
-    try:
-        import ctypes
-        root.update_idletasks()
-        # Get the HWND (window handle)
-        hwnd = ctypes.windll.user32.GetParent(root.winfo_id())
-        if not hwnd:
+    def __init__(self, proxies, port=8888):
+        self.proxies = proxies
+        self.port = port
+        self._server_sock = None
+        self._thread = None
+        self._running = False
+        self._proxy_idx = 0
+        self._stats = {"requests": 0, "errors": 0}
+
+    def start(self):
+        self._server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._server_sock.settimeout(1.0)
+        self._server_sock.bind(("127.0.0.1", self.port))
+        self._server_sock.listen(100)
+        self._running = True
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._running = False
+        if self._server_sock:
+            try:
+                self._server_sock.close()
+            except Exception:
+                pass
+
+    def _get_next_proxy(self):
+        p = self.proxies[self._proxy_idx % len(self.proxies)]
+        self._proxy_idx = (self._proxy_idx + 1) % len(self.proxies)
+        return p
+
+    def _run(self):
+        while self._running:
+            try:
+                client_sock, addr = self._server_sock.accept()
+                t = threading.Thread(target=self._handle_client,
+                                     args=(client_sock,), daemon=True)
+                t.start()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+
+    def _handle_client(self, client_sock):
+        try:
+            data = client_sock.recv(4096)
+            if not data:
+                client_sock.close()
+                return
+
+            first_line = data.split(b"\r\n")[0].decode("utf-8", errors="ignore")
+            method = first_line.split(" ")[0] if first_line else ""
+
+            if method == "CONNECT":
+                self._handle_connect(client_sock, data)
+            else:
+                self._handle_http(client_sock, data)
+
+            self._stats["requests"] += 1
+        except Exception:
+            self._stats["errors"] += 1
+        finally:
+            try:
+                client_sock.close()
+            except Exception:
+                pass
+
+    def _handle_connect(self, client_sock, data):
+        parts = data.split(b"\r\n")[0].split(b" ")
+        target = parts[1].decode("utf-8", errors="ignore")
+        if ":" in target:
+            host, port = target.rsplit(":", 1)
+            port = int(port)
+        else:
+            host, port = target, 443
+
+        proxy = self._get_next_proxy()
+        try:
+            remote = socket.create_connection(
+                (proxy["host"], proxy["port"]), timeout=10
+            )
+            req = f"CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n"
+            if proxy.get("user"):
+                cred = base64.b64encode(
+                    f"{proxy['user']}:{proxy['pass']}".encode()
+                ).decode()
+                req += f"Proxy-Authorization: Basic {cred}\r\n"
+            req += "\r\n"
+            remote.sendall(req.encode())
+
+            resp = remote.recv(4096)
+            if b"200" in resp.split(b"\r\n")[0]:
+                client_sock.sendall(
+                    b"HTTP/1.1 200 Connection Established\r\n\r\n"
+                )
+                self._tunnel(client_sock, remote)
+            else:
+                client_sock.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+            remote.close()
+        except Exception:
+            try:
+                client_sock.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+            except Exception:
+                pass
+
+    def _handle_http(self, client_sock, data):
+        first_line = data.split(b"\r\n")[0].decode("utf-8", errors="ignore")
+        parts = first_line.split(" ")
+        if len(parts) < 3:
+            client_sock.sendall(b"HTTP/1.1 400 Bad Request\r\n\r\n")
             return
-        # Add WS_EX_APPWINDOW, remove WS_EX_TOOLWINDOW
-        style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-        style = style | WS_EX_APPWINDOW
-        style = style & ~0x00000080  # Remove WS_EX_TOOLWINDOW
-        ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
-        # Force window to show in taskbar
-        ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-        ctypes.windll.user32.SetForegroundWindow(hwnd)
-    except Exception as e:
-        logger.debug(f"Alt+Tab fix skipped: {e}")
+
+        url = parts[1]
+        if not url.startswith("http://"):
+            client_sock.sendall(b"HTTP/1.1 400 Bad Request\r\n\r\n")
+            return
+
+        url_path = url[7:]
+        if "/" in url_path:
+            host_port, path = url_path.split("/", 1)
+            path = "/" + path
+        else:
+            host_port, path = url_path, "/"
+
+        if ":" in host_port:
+            host, port = host_port.rsplit(":", 1)
+            port = int(port)
+        else:
+            host, port = host_port, 80
+
+        proxy = self._get_next_proxy()
+        try:
+            remote = socket.create_connection(
+                (proxy["host"], proxy["port"]), timeout=10
+            )
+            new_request = data.replace(
+                f"http://{host_port}{path}".encode(), path.encode(), 1
+            )
+            if proxy.get("user"):
+                cred = base64.b64encode(
+                    f"{proxy['user']}:{proxy['pass']}".encode()
+                ).decode()
+                new_request = new_request.replace(
+                    b"\r\n\r\n",
+                    f"\r\nProxy-Authorization: Basic {cred}\r\n\r\n".encode(),
+                    1,
+                )
+            remote.sendall(new_request)
+            self._tunnel(client_sock, remote)
+            remote.close()
+        except Exception:
+            try:
+                client_sock.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+            except Exception:
+                pass
+
+    def _tunnel(self, sock1, sock2):
+        sockets = [sock1, sock2]
+        while self._running:
+            try:
+                readable, _, exceptional = select.select(sockets, [], sockets, 30)
+                if exceptional or not readable:
+                    break
+                for s in readable:
+                    other = sock2 if s is sock1 else sock1
+                    data = s.recv(8192)
+                    if not data:
+                        return
+                    other.sendall(data)
+            except Exception:
+                break
+
+
+def _random_ip():
+    first = random.choice([i for i in range(1, 224) if i != 127])
+    return f"{first}.{random.randint(0,255)}.{random.randint(0,255)}.{random.randint(1,254)}"
+
+
+def _random_port():
+    return random.choice([8080, 3128, 8000, 8888, 1080, 9050, 4145, 10808, 7890])
+
+
+def _random_user():
+    prefixes = ["user", "proxy", "node", "srv", "gw", "nat", "vpn", "relay"]
+    return f"{random.choice(prefixes)}{random.randint(100, 9999)}"
+
+
+def _random_pass(length=12):
+    chars = string.ascii_letters + string.digits + "!@#$%&*"
+    return "".join(random.choices(chars, k=length))
 
 
 class App:
-    """Main application window with glass background and page routing."""
 
-    def __init__(self, root: tk.Tk):
+    def __init__(self, root: ctk.CTk):
         self.root = root
         self.root.title("S9Checker v2.0")
         self.root.geometry(f"{T.WINDOW_WIDTH}x{T.WINDOW_HEIGHT}")
-        self.root.configure(bg="#000000")
+        self.root.configure(fg_color="#000000")
         self.root.minsize(T.WINDOW_MIN_W, T.WINDOW_MIN_H)
 
-        # Remove native titlebar for glass effect
-        self.root.overrideredirect(True)
-
-        # Center window on screen
-        self.root.update_idletasks()
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
-        x = (sw - T.WINDOW_WIDTH) // 2
-        y = (sh - T.WINDOW_HEIGHT) // 2
-        self.root.geometry(f"{T.WINDOW_WIDTH}x{T.WINDOW_HEIGHT}+{x}+{y}")
-
-        # Fix Alt+Tab (must be after geometry set)
-        _fix_alt_tab(self.root)
-
-        # Application state
         self.combos = []
         self.combo_file = ""
         self.selected_platforms = set(PLATFORMS.keys())
@@ -85,158 +237,76 @@ class App:
         self._results_mgr = None
         self._thread = None
         self._loop = None
-        self._drag_data = {"x": 0, "y": 0}
-        self._glass_img = None
+        self._ui_queue = queue.Queue()
+        self._proxy_server = None
         self.stats = {"completed": 0, "total": 0, "valid": 0, "invalid": 0,
                       "errors": 0, "speed": 0.0, "elapsed": 0.0, "percent": 0}
 
-        # Capture desktop blur BEFORE showing
-        self._glass_img = capture_desktop_blur(
-            self.root, radius=T.GLASS_BLUR_RADIUS, tint=T.GLASS_TINT
-        )
-
-        # Build layout
-        self._build_glass_background()
-        self._build_titlebar()
         self._build_sidebar()
         self._build_content_area()
 
-        # Set up async event loop
         self._loop = asyncio.new_event_loop()
         self._async_thread = threading.Thread(target=self._run_async_loop, daemon=True)
         self._async_thread.start()
 
-        # Page routing
         self.pages = {}
         self.current_page = None
         self._register_pages()
         self.show_page("dashboard")
+        self._poll_ui_queue()
 
-    # -------------------------------------------------------------------
-    # Glass background
-    # -------------------------------------------------------------------
-    def _build_glass_background(self):
-        self.canvas = tk.Canvas(self.root, highlightthickness=0, bd=0)
-        self.canvas.pack(fill="both", expand=True)
-
-        if self._glass_img:
-            self.canvas.create_image(0, 0, image=self._glass_img, anchor="nw")
-
-        self.canvas.create_rectangle(0, 0, 9999, 9999, fill="#000000",
-                                     stipple="gray25", outline="")
-
-    # -------------------------------------------------------------------
-    # Custom titlebar
-    # -------------------------------------------------------------------
-    def _build_titlebar(self):
-        self.titlebar = tk.Frame(self.canvas, bg=T.BG_DARK, height=T.TITLEBAR_HEIGHT)
-        self.canvas.create_window(
-            0, 0, window=self.titlebar, anchor="nw",
-            width=T.WINDOW_WIDTH, height=T.TITLEBAR_HEIGHT
-        )
-
-        tk.Label(self.titlebar, text="  S9Checker v2.0", font=T.FONT_BOLD,
-                 fg=T.FG2, bg=T.BG_DARK).pack(side="left")
-
-        # Close
-        close_btn = tk.Label(self.titlebar, text=" \u2715 ", font=T.FONT_BOLD,
-                             fg=T.FG2, bg=T.BG_DARK, cursor="hand2", padx=8)
-        close_btn.pack(side="right")
-        close_btn.bind("<Button-1>", lambda e: self._on_close())
-        close_btn.bind("<Enter>", lambda e: close_btn.configure(fg=T.RED, bg="#1a1a1a"))
-        close_btn.bind("<Leave>", lambda e: close_btn.configure(fg=T.FG2, bg=T.BG_DARK))
-
-        # Minimize
-        min_btn = tk.Label(self.titlebar, text=" \u2014 ", font=T.FONT_BOLD,
-                           fg=T.FG2, bg=T.BG_DARK, cursor="hand2", padx=8)
-        min_btn.pack(side="right")
-        min_btn.bind("<Button-1>", lambda e: self._minimize())
-        min_btn.bind("<Enter>", lambda e: min_btn.configure(fg=T.FG, bg="#1a1a1a"))
-        min_btn.bind("<Leave>", lambda e: min_btn.configure(fg=T.FG2, bg=T.BG_DARK))
-
-        # Drag
-        self.titlebar.bind("<Button-1>", self._start_drag)
-        self.titlebar.bind("<B1-Motion>", self._on_drag)
-
-    def _start_drag(self, e):
-        self._drag_data["x"] = e.x_root - self.root.winfo_x()
-        self._drag_data["y"] = e.y_root - self.root.winfo_y()
-
-    def _on_drag(self, e):
-        x = e.x_root - self._drag_data["x"]
-        y = e.y_root - self._drag_data["y"]
-        self.root.geometry(f"+{x}+{y}")
-
-    def _minimize(self):
-        self.root.overrideredirect(False)
-        self.root.iconify()
-        self.root.after(100, self._restore_override)
-
-    def _restore_override(self):
-        def on_map(e):
-            self.root.overrideredirect(True)
-            self.root.after(10, lambda: _fix_alt_tab(self.root))
-            self.root.unbind("<Map>")
-        self.root.bind("<Map>", on_map)
-
-    # -------------------------------------------------------------------
-    # Sidebar
-    # -------------------------------------------------------------------
     def _build_sidebar(self):
-        self.sidebar = tk.Frame(self.canvas, bg=T.BG_DARK, width=T.SIDEBAR_WIDTH)
-        self.canvas.create_window(
-            0, T.TITLEBAR_HEIGHT, window=self.sidebar, anchor="nw",
-            width=T.SIDEBAR_WIDTH, height=T.WINDOW_HEIGHT - T.TITLEBAR_HEIGHT
-        )
+        self.sidebar = ctk.CTkFrame(self.root, fg_color=T.BG_SIDEBAR,
+                                     width=T.SIDEBAR_WIDTH, corner_radius=0)
+        self.sidebar.pack(side="left", fill="y")
+        self.sidebar.pack_propagate(False)
 
-        tk.Label(self.sidebar, text="CC", font=("Consolas", 12, "bold"),
-                 fg=T.ACCENT, bg=T.BG_DARK, pady=12).pack()
-        tk.Frame(self.sidebar, bg=T.BORDER, height=1).pack(fill="x", padx=10, pady=4)
+        logo_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        logo_frame.pack(fill="x", pady=(16, 8), padx=12)
+        ctk.CTkLabel(logo_frame, text="S9", font=("Segoe UI", 24, "bold"),
+                     text_color=T.ACCENT).pack(side="left")
+        ctk.CTkLabel(logo_frame, text="Checker", font=("Segoe UI", 24, "bold"),
+                     text_color=T.FG).pack(side="left")
+
+        ctk.CTkFrame(self.sidebar, fg_color=T.BORDER, height=1).pack(
+            fill="x", padx=12, pady=(4, 12))
 
         self.sidebar_buttons = {}
         nav_items = [
-            ("dashboard", "\u25a3", "Dashboard"),
-            ("combos",    "\u2630", "Combos"),
-            ("platforms", "\u25a2", "Platforms"),
-            ("settings",  "\u2699", "Settings"),
-            ("results",   "\u25b6", "Results"),
+            ("\u25a3", "Dashboard"),
+            ("\u2630", "Combos"),
+            ("\u25a2", "Platforms"),
+            ("\u2699", "Settings"),
+            ("\u25b6", "Results"),
         ]
 
-        for page_name, icon, tooltip in nav_items:
-            btn = SidebarButton(self.sidebar, icon, tooltip,
-                                command=lambda p=page_name: self.show_page(p))
-            btn.pack(fill="x", pady=2)
-            self.sidebar_buttons[page_name] = btn
+        for icon, label in nav_items:
+            btn = SidebarButton(self.sidebar, icon, label,
+                                command=lambda p=label.lower(): self.show_page(p))
+            btn.pack(fill="x", pady=1)
+            self.sidebar_buttons[label.lower()] = btn
 
-    # -------------------------------------------------------------------
-    # Content area
-    # -------------------------------------------------------------------
     def _build_content_area(self):
-        content_w = T.WINDOW_WIDTH - T.SIDEBAR_WIDTH
-        content_h = T.WINDOW_HEIGHT - T.TITLEBAR_HEIGHT
+        self.content_frame = ctk.CTkFrame(self.root, fg_color=T.BG_MAIN,
+                                           corner_radius=0)
+        self.content_frame.pack(side="left", fill="both", expand=True)
 
-        self.content_frame = tk.Frame(self.canvas, bg=T.BG_MAIN)
-        self.canvas.create_window(
-            T.SIDEBAR_WIDTH, T.TITLEBAR_HEIGHT, window=self.content_frame,
-            anchor="nw", width=content_w, height=content_h
-        )
-
-        self.header_frame = tk.Frame(self.content_frame, bg=T.BG_MAIN, height=44)
-        self.header_frame.pack(fill="x", padx=20, pady=(10, 6))
+        self.header_frame = ctk.CTkFrame(self.content_frame, fg_color=T.BG_MAIN,
+                                          height=50)
+        self.header_frame.pack(fill="x", padx=24, pady=(16, 4))
         self.header_frame.pack_propagate(False)
 
-        self.header_title = tk.Label(self.header_frame, text="Dashboard",
-                                     font=T.FONT_TITLE, fg=T.FG, bg=T.BG_MAIN)
+        self.header_title = ctk.CTkLabel(self.header_frame, text="Dashboard",
+                                          font=T.FONT_TITLE, text_color=T.FG,
+                                          anchor="w")
         self.header_title.pack(side="left")
 
-        tk.Frame(self.content_frame, bg=T.BORDER, height=1).pack(fill="x", padx=20)
+        ctk.CTkFrame(self.content_frame, fg_color=T.BORDER, height=1).pack(fill="x", padx=24)
 
-        self.page_container = tk.Frame(self.content_frame, bg=T.BG_MAIN)
-        self.page_container.pack(fill="both", expand=True, padx=20, pady=12)
+        self.page_container = ctk.CTkFrame(self.content_frame, fg_color=T.BG_MAIN,
+                                            corner_radius=0)
+        self.page_container.pack(fill="both", expand=True, padx=24, pady=(8, 16))
 
-    # -------------------------------------------------------------------
-    # Page routing
-    # -------------------------------------------------------------------
     def _register_pages(self):
         from ui.pages.dashboard import DashboardPage
         from ui.pages.combolists import CombosPage
@@ -273,26 +343,34 @@ class App:
             "settings": "Settings",
             "results": "Results",
         }
-        self.header_title.config(text=titles.get(name, name))
+        self.header_title.configure(text=titles.get(name, name))
 
-    # -------------------------------------------------------------------
-    # Async event loop
-    # -------------------------------------------------------------------
     def _run_async_loop(self):
         asyncio.set_event_loop(self._loop)
         self._loop.run_forever()
 
+    def _poll_ui_queue(self):
+        try:
+            while True:
+                msg_type, data = self._ui_queue.get_nowait()
+                if msg_type == "progress":
+                    self._on_progress(data)
+                elif msg_type == "error":
+                    self._log_error(data)
+                elif msg_type == "complete":
+                    self._on_test_complete()
+        except queue.Empty:
+            pass
+        self.root.after(50, self._poll_ui_queue)
+
     async def _async_progress_callback(self, info: dict):
         self.stats.update(info)
-        self.root.after(0, lambda i=info: self._on_progress(i))
+        self._ui_queue.put(("progress", info))
 
     def _on_progress(self, info):
         if "dashboard" in self.pages:
             self.pages["dashboard"].update_progress(info)
 
-    # -------------------------------------------------------------------
-    # Test control
-    # -------------------------------------------------------------------
     def start_test(self):
         if self.running:
             return
@@ -317,6 +395,9 @@ class App:
         ignore_timeouts = settings.get_ignore_timeouts() if settings else False
         max_concurrent = settings.get_concurrency() if settings else 10
 
+        if not proxy:
+            proxy = self._ask_proxy_and_start()
+
         self._results_mgr = ResultsManager(output_dir="results")
         self._checker = CredentialChecker(
             results_mgr=self._results_mgr,
@@ -331,11 +412,98 @@ class App:
 
         total = len(self.combos) * len(self.selected_platforms)
         if "dashboard" in self.pages:
-            self.pages["dashboard"].log(f"\u25b6 Starting: {len(self.combos)} combos x "
-                                        f"{len(self.selected_platforms)} platforms = {total} requests")
+            proxy_info = f" via {proxy}" if proxy else ""
+            self.pages["dashboard"].log(
+                f"\u25b6 Starting: {len(self.combos)} combos x "
+                f"{len(self.selected_platforms)} platforms = {total} requests{proxy_info}"
+            )
 
         self._thread = threading.Thread(target=self._run_async_test, daemon=True)
         self._thread.start()
+
+    def _ask_proxy_and_start(self):
+        result = {"proxy": None}
+
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("Proxy")
+        dialog.geometry("400x260")
+        dialog.configure(fg_color=T.BG_MAIN)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        x = self.root.winfo_x() + (self.root.winfo_width() - 400) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 260) // 2
+        dialog.geometry(f"+{x}+{y}")
+
+        ctk.CTkLabel(dialog, text="Use proxies?", font=T.FONT_TITLE,
+                     text_color=T.FG).pack(pady=(20, 4))
+        ctk.CTkLabel(dialog, text="Auto-generate proxies + rotation server",
+                     font=T.FONT, text_color=T.FG2).pack(pady=(0, 4))
+
+        status_label = ctk.CTkLabel(dialog, text="", font=T.FONT_MONO,
+                                     text_color=T.FG3)
+        status_label.pack(pady=(4, 8))
+
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack()
+
+        def on_yes():
+            status_label.configure(text="Generating proxies...", text_color=T.ORANGE)
+            dialog.update()
+
+            proxies = []
+            for _ in range(20):
+                ip = _random_ip()
+                port = _random_port()
+                user = _random_user()
+                pw = _random_pass()
+                proxies.append({
+                    "host": ip, "port": port,
+                    "user": user, "pass": pw
+                })
+
+            port_str = "8888"
+            server_port = int(port_str)
+            server = RotationProxyServer(proxies, port=server_port)
+            try:
+                server.start()
+                self._proxy_server = server
+            except OSError as e:
+                status_label.configure(text=f"Failed: {e}", text_color=T.RED)
+                return
+
+            proxy_url = f"http://127.0.0.1:{server_port}"
+            result["proxy"] = proxy_url
+
+            settings = self.pages.get("settings")
+            if settings:
+                settings.proxy_entry.delete(0, "end")
+                settings.proxy_entry.insert(0, proxy_url)
+                settings.proxy_status.configure(
+                    text=f"20 proxies active on :{server_port}",
+                    text_color=T.GREEN
+                )
+
+            status_label.configure(
+                text=f"\u2713 Server running on :{server_port}",
+                text_color=T.GREEN
+            )
+            dialog.after(600, dialog.destroy)
+
+        def on_no():
+            result["proxy"] = None
+            dialog.destroy()
+
+        ctk.CTkButton(btn_frame, text="Yes, use proxies", font=T.FONT_BOLD,
+                      fg_color=T.GREEN, hover_color=T.GREEN_DIM,
+                      text_color="#000000", width=140, command=on_yes).pack(side="left", padx=8)
+        ctk.CTkButton(btn_frame, text="No, direct", font=T.FONT_BOLD,
+                      fg_color=T.RED, hover_color=T.RED_DIM,
+                      text_color="#000000", width=140, command=on_no).pack(side="left", padx=8)
+
+        dialog.wait_window()
+        return result["proxy"]
 
     def _run_async_test(self):
         try:
@@ -346,9 +514,9 @@ class App:
             )
         except Exception as e:
             logger.error(f"Test error: {e}")
-            self.root.after(0, lambda e=e: self._log_error(str(e)))
+            self._ui_queue.put(("error", str(e)))
         finally:
-            self.root.after(0, self._on_test_complete)
+            self._ui_queue.put(("complete", None))
 
     def _log_error(self, msg):
         if "dashboard" in self.pages:
@@ -420,20 +588,19 @@ class App:
                     pass
         except Exception as e:
             try:
-                messagebox.showerror("Error", f"Cannot load file: {e}")
+                messagebox.showerror("Error", f"Failed to load file:\n{e}")
             except (KeyboardInterrupt, tk.TclError):
                 pass
-            self.combos = []
 
     def _on_close(self):
+        if self._proxy_server:
+            self._proxy_server.stop()
         if self.running:
             try:
-                if not messagebox.askyesno("Confirm", "A test is running. Quit anyway?"):
-                    return
+                if messagebox.askokcancel("Quit", "A test is running. Quit anyway?"):
+                    self.stop_test()
+                    self.root.destroy()
             except (KeyboardInterrupt, tk.TclError):
-                pass
-            self._checker.stop()
-        if self._loop:
-            self._loop.call_soon_threadsafe(self._loop.stop)
-        self.root.quit()
-        self.root.after(100, self.root.destroy)
+                self.root.destroy()
+        else:
+            self.root.destroy()

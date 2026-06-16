@@ -1,4 +1,3 @@
-# Core engine - exports for clean imports throughout the project
 from core.platforms import Platform, PLATFORMS
 from core.checker import CredentialChecker
 from core.results import ResultsManager, ResultStatus

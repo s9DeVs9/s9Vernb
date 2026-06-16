@@ -1,12 +1,8 @@
-"""
-Results manager for S9Checker.
-Handles storing, categorizing, and persisting credential check results.
-Results are written to files in real-time so nothing is lost on crash.
-"""
 
 import asyncio
 import time
 import logging
+import os
 
 from core.utils import ResultStatus
 
@@ -14,10 +10,10 @@ logger = logging.getLogger("S9Checker")
 
 
 class ResultsManager:
-    """Thread-safe result storage with file persistence."""
 
     def __init__(self, output_dir: str = "."):
         self.output_dir = output_dir
+        os.makedirs(self.output_dir, exist_ok=True)
         self.results = []
         self.valid = []
         self.invalid = []
@@ -26,7 +22,6 @@ class ResultsManager:
 
     async def add_result(self, email: str, password: str, platform: str,
                          status: str, details: str = ""):
-        """Add a result and immediately persist it to disk."""
         result = {
             "email": email,
             "password": password,
@@ -57,7 +52,6 @@ class ResultsManager:
             )
 
     def _append_file(self, filename: str, line: str):
-        """Append a line to a file in the output directory."""
         try:
             with open(f"{self.output_dir}/{filename}", "a", encoding="utf-8") as f:
                 f.write(line)
@@ -65,7 +59,6 @@ class ResultsManager:
             logger.error(f"Failed to write to {filename}: {e}")
 
     def get_stats(self) -> dict:
-        """Return current result counts."""
         return {
             "total": len(self.results),
             "valid": len(self.valid),

@@ -1,8 +1,3 @@
-"""
-Website scraper/cloner for S9Checker.
-Downloads HTML, CSS, JS, and assets from a given URL.
-Creates organized output files for offline viewing.
-"""
 
 import os
 import re
@@ -17,13 +12,6 @@ logger = logging.getLogger("S9Checker")
 
 
 class WebScraper:
-    """
-    Async website scraper that downloads and saves:
-    - HTML pages
-    - CSS stylesheets
-    - JavaScript files
-    - Images and other assets
-    """
 
     USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
@@ -38,7 +26,6 @@ class WebScraper:
         self._session = None
 
     async def _fetch(self, url: str) -> tuple[int, str]:
-        """Fetch a URL and return (status, text)."""
         headers = {"User-Agent": self.USER_AGENT}
         timeout = aiohttp.ClientTimeout(total=self.timeout)
 
@@ -52,7 +39,6 @@ class WebScraper:
             return 0, ""
 
     async def _fetch_binary(self, url: str) -> tuple[int, bytes]:
-        """Fetch a binary file (images, etc)."""
         headers = {"User-Agent": self.USER_AGENT}
         timeout = aiohttp.ClientTimeout(total=self.timeout)
 
@@ -66,7 +52,6 @@ class WebScraper:
             return 0, b""
 
     def _save_file(self, filepath: str, content: str or bytes):
-        """Save content to a file, creating directories if needed."""
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         mode = "wb" if isinstance(content, bytes) else "w"
         encoding = None if isinstance(content, bytes) else "utf-8"
@@ -74,13 +59,11 @@ class WebScraper:
             f.write(content)
 
     def _url_to_filepath(self, url: str, base_url: str) -> str:
-        """Convert a URL to a local file path."""
         parsed = urlparse(url)
         path = parsed.path.strip("/")
         if not path:
             path = "index.html"
 
-        # Add extension if missing
         if "." not in os.path.basename(path):
             if "css" in url:
                 path += ".css"
@@ -94,9 +77,7 @@ class WebScraper:
         return os.path.join(self.output_dir, path)
 
     def _extract_css_urls(self, css_content: str, base_url: str) -> list[str]:
-        """Extract URLs from CSS content (url(), @import)."""
         urls = []
-        # url() patterns
         url_pattern = r'url\(["\']?([^"\')\s]+)["\']?\)'
         for match in re.finditer(url_pattern, css_content):
             url = match.group(1)
@@ -110,7 +91,6 @@ class WebScraper:
             else:
                 urls.append(urljoin(base_url, url))
 
-        # @import patterns
         import_pattern = r'@import\s+["\']([^"\']+)["\']'
         for match in re.finditer(import_pattern, css_content):
             url = match.group(1)
@@ -122,10 +102,8 @@ class WebScraper:
         return urls
 
     def _extract_html_resources(self, html: str, base_url: str) -> dict:
-        """Extract CSS, JS, and image URLs from HTML."""
         resources = {"css": [], "js": [], "images": []}
 
-        # CSS links
         css_pattern = r'<link[^>]+href=["\']([^"\']+\.css[^"\']*)["\']'
         for match in re.finditer(css_pattern, html, re.IGNORECASE):
             url = match.group(1)
@@ -136,7 +114,6 @@ class WebScraper:
             else:
                 resources["css"].append(urljoin(base_url, url))
 
-        # JS scripts
         js_pattern = r'<script[^>]+src=["\']([^"\']+\.js[^"\']*)["\']'
         for match in re.finditer(js_pattern, html, re.IGNORECASE):
             url = match.group(1)
@@ -147,7 +124,6 @@ class WebScraper:
             else:
                 resources["js"].append(urljoin(base_url, url))
 
-        # Images
         img_pattern = r'<img[^>]+src=["\']([^"\']+)["\']'
         for match in re.finditer(img_pattern, html, re.IGNORECASE):
             url = match.group(1)
@@ -163,10 +139,6 @@ class WebScraper:
         return resources
 
     async def scrape(self, url: str, download_assets: bool = True) -> dict:
-        """
-        Scrape a website and save all files.
-        Returns a summary dict with file counts.
-        """
         self._downloaded = set()
         parsed = urlparse(url)
         base_url = f"{parsed.scheme}://{parsed.netloc}"
@@ -175,12 +147,10 @@ class WebScraper:
         async with aiohttp.ClientSession(connector=connector) as session:
             self._session = session
 
-            # Fetch main HTML
             status, html = await self._fetch(url)
             if status != 200:
                 return {"error": f"HTTP {status}", "html": 0, "css": 0, "js": 0, "images": 0}
 
-            # Save HTML
             html_path = os.path.join(self.output_dir, "index.html")
             self._save_file(html_path, html)
 
@@ -189,11 +159,9 @@ class WebScraper:
             if not download_assets:
                 return summary
 
-            # Extract resources
             resources = self._extract_html_resources(html, url)
 
-            # Download CSS
-            for css_url in resources["css"][:50]:  # Limit to 50
+            for css_url in resources["css"][:50]:
                 if css_url in self._downloaded:
                     continue
                 self._downloaded.add(css_url)
@@ -204,7 +172,6 @@ class WebScraper:
                     self._save_file(css_path, css_content)
                     summary["css"] += 1
 
-                    # Extract URLs from CSS
                     nested_urls = self._extract_css_urls(css_content, css_url)
                     for nested_url in nested_urls[:30]:
                         if nested_url in self._downloaded:
@@ -220,7 +187,6 @@ class WebScraper:
                             else:
                                 summary["images"] += 1
 
-            # Download JS
             for js_url in resources["js"][:50]:
                 if js_url in self._downloaded:
                     continue
@@ -232,7 +198,6 @@ class WebScraper:
                     self._save_file(js_path, js_content)
                     summary["js"] += 1
 
-            # Download images
             for img_url in resources["images"][:100]:
                 if img_url in self._downloaded:
                     continue

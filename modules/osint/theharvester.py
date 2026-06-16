@@ -1,12 +1,3 @@
-"""
-theHarvester email and domain reconnaissance wrapper.
-
-Wraps theHarvester to gather emails, subdomains, hosts, and
-public data from various sources like search engines, PGP
-keys, and SHODAN databases for OSINT investigations.
-
-Requires: theHarvester (https://github.com/laramies/theHarvester)
-"""
 
 import shutil
 import asyncio

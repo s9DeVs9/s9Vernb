@@ -1,8 +1,3 @@
-"""
-Combolist manager for S9Checker.
-Handles loading, saving, merging, deduplication, and filtering of combo lists.
-Combos are stored as (email, password) tuples.
-"""
 
 import os
 import time
@@ -16,7 +11,6 @@ logger = logging.getLogger("S9Checker")
 
 
 class ComboList:
-    """A named list of email:password combos with file persistence."""
 
     def __init__(self, name: str = "default", filepath: Optional[str] = None):
         self.name = name
@@ -25,11 +19,7 @@ class ComboList:
         self.created_at = time.time()
         self.metadata: dict = {}
 
-    # -------------------------------------------------------------------
-    # Loading
-    # -------------------------------------------------------------------
     def load(self, filepath: str) -> int:
-        """Load combos from a file. Returns count of loaded entries."""
         self.filepath = filepath
         self.combos = []
         seen = set()
@@ -57,11 +47,7 @@ class ComboList:
         logger.info(f"Loaded {len(self.combos)} combos from {os.path.basename(filepath)}")
         return len(self.combos)
 
-    # -------------------------------------------------------------------
-    # Saving
-    # -------------------------------------------------------------------
     def save(self, filepath: Optional[str] = None) -> bool:
-        """Save combos to a file."""
         target = filepath or self.filepath
         if not target:
             logger.error("No filepath specified for save")
@@ -79,11 +65,7 @@ class ComboList:
             logger.error(f"Failed to save combolist: {e}")
             return False
 
-    # -------------------------------------------------------------------
-    # Manipulation
-    # -------------------------------------------------------------------
     def add(self, email: str, password: str) -> bool:
-        """Add a single combo. Returns True if added, False if duplicate."""
         key = f"{email}:{password}"
         existing = {f"{e}:{p}" for e, p in self.combos}
         if key in existing:
@@ -92,13 +74,11 @@ class ComboList:
         return True
 
     def remove(self, email: str) -> int:
-        """Remove all combos with this email. Returns count removed."""
         before = len(self.combos)
         self.combos = [(e, p) for e, p in self.combos if e != email]
         return before - len(self.combos)
 
     def merge(self, other: "ComboList") -> int:
-        """Merge another ComboList into this one. Returns count of new entries added."""
         existing = {f"{e}:{p}" for e, p in self.combos}
         added = 0
         for email, password in other.combos:
@@ -110,7 +90,6 @@ class ComboList:
         return added
 
     def deduplicate(self) -> int:
-        """Remove duplicate combos. Returns count removed."""
         seen = set()
         unique = []
         for email, password in self.combos:
@@ -123,13 +102,11 @@ class ComboList:
         return removed
 
     def filter_by_domain(self, domain: str) -> "ComboList":
-        """Return a new ComboList containing only combos with emails from this domain."""
         filtered = ComboList(name=f"{self.name}_{domain}")
         filtered.combos = [(e, p) for e, p in self.combos if e.lower().endswith(f"@{domain.lower()}")]
         return filtered
 
     def get_domains(self) -> dict[str, int]:
-        """Return a dict of email domains and their counts."""
         domains = Counter()
         for email, _ in self.combos:
             if "@" in email:
@@ -137,23 +114,18 @@ class ComboList:
                 domains[domain] += 1
         return dict(domains.most_common())
 
-    # -------------------------------------------------------------------
-    # Stats & Preview
-    # -------------------------------------------------------------------
     def stats(self) -> dict:
-        """Return summary statistics."""
         domains = self.get_domains()
         return {
             "name": self.name,
             "total": len(self.combos),
-            "unique": len(self.combos),  # Already deduplicated on load
+            "unique": len(self.combos),
             "domains": len(domains),
             "top_domains": dict(list(domains.items())[:5]),
             "filepath": self.filepath,
         }
 
     def preview(self, n: int = 10) -> list[tuple[str, str]]:
-        """Return the first N combos for preview."""
         return self.combos[:n]
 
     def __len__(self):
@@ -163,11 +135,7 @@ class ComboList:
         return f"ComboList(name={self.name!r}, combos={len(self.combos)})"
 
 
-# -------------------------------------------------------------------
-# Utility: scan a directory for combolist files
-# -------------------------------------------------------------------
 def scan_combolists(directory: str = COMBOLIST_DIR) -> list[str]:
-    """Scan a directory for .txt files that look like combolists."""
     results = []
     if not os.path.isdir(directory):
         return results
