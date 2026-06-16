@@ -1,4 +1,4 @@
-# ComboChecker v2.0
+# s9Vernb v2.0
 
 Multi-Platform Credential Validator — Outil de test de combolist avec interface graphique.
 
