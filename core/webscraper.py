@@ -51,7 +51,7 @@ class WebScraper:
             logger.error(f"Failed to fetch {url}: {e}")
             return 0, b""
 
-    def _save_file(self, filepath: str, content: str or bytes):
+    def _save_file(self, filepath: str, content: str | bytes):
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         mode = "wb" if isinstance(content, bytes) else "w"
         encoding = None if isinstance(content, bytes) else "utf-8"

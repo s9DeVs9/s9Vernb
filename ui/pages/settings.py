@@ -153,7 +153,11 @@ class SettingsPage:
         status_label.pack(pady=(8, 4))
 
         def generate():
-            from cli import _random_ip, _random_port, _random_user, _random_pass
+            from features.proxy.utils import random_ip, random_port, random_user, random_pass
+            _random_ip = random_ip
+            _random_port = random_port
+            _random_user = random_user
+            _random_pass = random_pass
             import random
 
             count_str = count_entry.get().strip()

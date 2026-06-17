@@ -25,7 +25,7 @@ def main():
             except KeyboardInterrupt:
                 app._on_close()
         else:
-            from cli import run_cli
+            from cli.main import run_cli
             run_cli()
     except KeyboardInterrupt:
         print("\n  S9Checker terminated.")

@@ -131,12 +131,12 @@ class ReverseShellServer:
         if self.client_socket:
             try:
                 self.client_socket.close()
-            except:
+            except Exception:
                 pass
         if self.server_socket:
             try:
                 self.server_socket.close()
-            except:
+            except Exception:
                 pass
         self._emit("Server stopped")
 
@@ -228,7 +228,7 @@ class ReverseShellClient:
         if self.socket:
             try:
                 self.socket.close()
-            except:
+            except Exception:
                 pass
 
 

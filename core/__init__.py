@@ -1,3 +1,4 @@
+
 from core.platforms import Platform, PLATFORMS
 from core.checker import CredentialChecker
 from core.results import ResultsManager, ResultStatus

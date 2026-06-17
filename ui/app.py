@@ -4,220 +4,18 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import asyncio
 import threading
-import time
 import os
-import sys
 import logging
 import queue
-import socket
-import select
-import base64
-import random
-import string
 
-from core import (
-    PLATFORMS, CredentialChecker, ResultsManager,
-    parse_combolist, load_proxies, ResultStatus
-)
+from core.platforms import PLATFORMS
+from core.checker import CredentialChecker
+from core.results import ResultsManager
+from core.utils import parse_combolist
 from ui import theme as T
 from ui.widgets import SidebarButton
 
 logger = logging.getLogger("S9Checker")
-
-
-class RotationProxyServer:
-
-    def __init__(self, proxies, port=8888):
-        self.proxies = proxies
-        self.port = port
-        self._server_sock = None
-        self._thread = None
-        self._running = False
-        self._proxy_idx = 0
-        self._stats = {"requests": 0, "errors": 0}
-
-    def start(self):
-        self._server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._server_sock.settimeout(1.0)
-        self._server_sock.bind(("127.0.0.1", self.port))
-        self._server_sock.listen(100)
-        self._running = True
-        self._thread = threading.Thread(target=self._run, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        self._running = False
-        if self._server_sock:
-            try:
-                self._server_sock.close()
-            except Exception:
-                pass
-
-    def _get_next_proxy(self):
-        p = self.proxies[self._proxy_idx % len(self.proxies)]
-        self._proxy_idx = (self._proxy_idx + 1) % len(self.proxies)
-        return p
-
-    def _run(self):
-        while self._running:
-            try:
-                client_sock, addr = self._server_sock.accept()
-                t = threading.Thread(target=self._handle_client,
-                                     args=(client_sock,), daemon=True)
-                t.start()
-            except socket.timeout:
-                continue
-            except OSError:
-                break
-
-    def _handle_client(self, client_sock):
-        try:
-            data = client_sock.recv(4096)
-            if not data:
-                client_sock.close()
-                return
-
-            first_line = data.split(b"\r\n")[0].decode("utf-8", errors="ignore")
-            method = first_line.split(" ")[0] if first_line else ""
-
-            if method == "CONNECT":
-                self._handle_connect(client_sock, data)
-            else:
-                self._handle_http(client_sock, data)
-
-            self._stats["requests"] += 1
-        except Exception:
-            self._stats["errors"] += 1
-        finally:
-            try:
-                client_sock.close()
-            except Exception:
-                pass
-
-    def _handle_connect(self, client_sock, data):
-        parts = data.split(b"\r\n")[0].split(b" ")
-        target = parts[1].decode("utf-8", errors="ignore")
-        if ":" in target:
-            host, port = target.rsplit(":", 1)
-            port = int(port)
-        else:
-            host, port = target, 443
-
-        proxy = self._get_next_proxy()
-        try:
-            remote = socket.create_connection(
-                (proxy["host"], proxy["port"]), timeout=10
-            )
-            req = f"CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n"
-            if proxy.get("user"):
-                cred = base64.b64encode(
-                    f"{proxy['user']}:{proxy['pass']}".encode()
-                ).decode()
-                req += f"Proxy-Authorization: Basic {cred}\r\n"
-            req += "\r\n"
-            remote.sendall(req.encode())
-
-            resp = remote.recv(4096)
-            if b"200" in resp.split(b"\r\n")[0]:
-                client_sock.sendall(
-                    b"HTTP/1.1 200 Connection Established\r\n\r\n"
-                )
-                self._tunnel(client_sock, remote)
-            else:
-                client_sock.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
-            remote.close()
-        except Exception:
-            try:
-                client_sock.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
-            except Exception:
-                pass
-
-    def _handle_http(self, client_sock, data):
-        first_line = data.split(b"\r\n")[0].decode("utf-8", errors="ignore")
-        parts = first_line.split(" ")
-        if len(parts) < 3:
-            client_sock.sendall(b"HTTP/1.1 400 Bad Request\r\n\r\n")
-            return
-
-        url = parts[1]
-        if not url.startswith("http://"):
-            client_sock.sendall(b"HTTP/1.1 400 Bad Request\r\n\r\n")
-            return
-
-        url_path = url[7:]
-        if "/" in url_path:
-            host_port, path = url_path.split("/", 1)
-            path = "/" + path
-        else:
-            host_port, path = url_path, "/"
-
-        if ":" in host_port:
-            host, port = host_port.rsplit(":", 1)
-            port = int(port)
-        else:
-            host, port = host_port, 80
-
-        proxy = self._get_next_proxy()
-        try:
-            remote = socket.create_connection(
-                (proxy["host"], proxy["port"]), timeout=10
-            )
-            new_request = data.replace(
-                f"http://{host_port}{path}".encode(), path.encode(), 1
-            )
-            if proxy.get("user"):
-                cred = base64.b64encode(
-                    f"{proxy['user']}:{proxy['pass']}".encode()
-                ).decode()
-                new_request = new_request.replace(
-                    b"\r\n\r\n",
-                    f"\r\nProxy-Authorization: Basic {cred}\r\n\r\n".encode(),
-                    1,
-                )
-            remote.sendall(new_request)
-            self._tunnel(client_sock, remote)
-            remote.close()
-        except Exception:
-            try:
-                client_sock.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
-            except Exception:
-                pass
-
-    def _tunnel(self, sock1, sock2):
-        sockets = [sock1, sock2]
-        while self._running:
-            try:
-                readable, _, exceptional = select.select(sockets, [], sockets, 30)
-                if exceptional or not readable:
-                    break
-                for s in readable:
-                    other = sock2 if s is sock1 else sock1
-                    data = s.recv(8192)
-                    if not data:
-                        return
-                    other.sendall(data)
-            except Exception:
-                break
-
-
-def _random_ip():
-    first = random.choice([i for i in range(1, 224) if i != 127])
-    return f"{first}.{random.randint(0,255)}.{random.randint(0,255)}.{random.randint(1,254)}"
-
-
-def _random_port():
-    return random.choice([8080, 3128, 8000, 8888, 1080, 9050, 4145, 10808, 7890])
-
-
-def _random_user():
-    prefixes = ["user", "proxy", "node", "srv", "gw", "nat", "vpn", "relay"]
-    return f"{random.choice(prefixes)}{random.randint(100, 9999)}"
-
-
-def _random_pass(length=12):
-    chars = string.ascii_letters + string.digits + "!@#$%&*"
-    return "".join(random.choices(chars, k=length))
 
 
 class App:
@@ -239,6 +37,7 @@ class App:
         self._loop = None
         self._ui_queue = queue.Queue()
         self._proxy_server = None
+        self._closing = False
         self.stats = {"completed": 0, "total": 0, "valid": 0, "invalid": 0,
                       "errors": 0, "speed": 0.0, "elapsed": 0.0, "percent": 0}
 
@@ -361,7 +160,10 @@ class App:
                     self._on_test_complete()
         except queue.Empty:
             pass
-        self.root.after(50, self._poll_ui_queue)
+        try:
+            self.root.after(50, self._poll_ui_queue)
+        except tk.TclError:
+            pass
 
     async def _async_progress_callback(self, info: dict):
         self.stats.update(info)
@@ -424,85 +226,12 @@ class App:
     def _ask_proxy_and_start(self):
         result = {"proxy": None}
 
-        dialog = ctk.CTkToplevel(self.root)
-        dialog.title("Proxy")
-        dialog.geometry("400x260")
-        dialog.configure(fg_color=T.BG_MAIN)
-        dialog.transient(self.root)
-        dialog.grab_set()
-        dialog.resizable(False, False)
-
-        x = self.root.winfo_x() + (self.root.winfo_width() - 400) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - 260) // 2
-        dialog.geometry(f"+{x}+{y}")
-
-        ctk.CTkLabel(dialog, text="Use proxies?", font=T.FONT_TITLE,
-                     text_color=T.FG).pack(pady=(20, 4))
-        ctk.CTkLabel(dialog, text="Auto-generate proxies + rotation server",
-                     font=T.FONT, text_color=T.FG2).pack(pady=(0, 4))
-
-        status_label = ctk.CTkLabel(dialog, text="", font=T.FONT_MONO,
-                                     text_color=T.FG3)
-        status_label.pack(pady=(4, 8))
-
-        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        btn_frame.pack()
-
-        def on_yes():
-            status_label.configure(text="Generating proxies...", text_color=T.ORANGE)
-            dialog.update()
-
-            proxies = []
-            for _ in range(20):
-                ip = _random_ip()
-                port = _random_port()
-                user = _random_user()
-                pw = _random_pass()
-                proxies.append({
-                    "host": ip, "port": port,
-                    "user": user, "pass": pw
-                })
-
-            port_str = "8888"
-            server_port = int(port_str)
-            server = RotationProxyServer(proxies, port=server_port)
-            try:
-                server.start()
-                self._proxy_server = server
-            except OSError as e:
-                status_label.configure(text=f"Failed: {e}", text_color=T.RED)
-                return
-
-            proxy_url = f"http://127.0.0.1:{server_port}"
+        def on_result(proxy_url):
             result["proxy"] = proxy_url
 
-            settings = self.pages.get("settings")
-            if settings:
-                settings.proxy_entry.delete(0, "end")
-                settings.proxy_entry.insert(0, proxy_url)
-                settings.proxy_status.configure(
-                    text=f"20 proxies active on :{server_port}",
-                    text_color=T.GREEN
-                )
-
-            status_label.configure(
-                text=f"\u2713 Server running on :{server_port}",
-                text_color=T.GREEN
-            )
-            dialog.after(600, dialog.destroy)
-
-        def on_no():
-            result["proxy"] = None
-            dialog.destroy()
-
-        ctk.CTkButton(btn_frame, text="Yes, use proxies", font=T.FONT_BOLD,
-                      fg_color=T.GREEN, hover_color=T.GREEN_DIM,
-                      text_color="#000000", width=140, command=on_yes).pack(side="left", padx=8)
-        ctk.CTkButton(btn_frame, text="No, direct", font=T.FONT_BOLD,
-                      fg_color=T.RED, hover_color=T.RED_DIM,
-                      text_color="#000000", width=140, command=on_no).pack(side="left", padx=8)
-
-        dialog.wait_window()
+        from ui.dialogs.proxy_dialog import ProxyDialog
+        dialog = ProxyDialog(self, on_result=on_result)
+        dialog.show()
         return result["proxy"]
 
     def _run_async_test(self):
@@ -593,14 +322,25 @@ class App:
                 pass
 
     def _on_close(self):
+        if getattr(self, "_closing", False):
+            return
+        self._closing = True
+
         if self._proxy_server:
             self._proxy_server.stop()
+        if self._loop and self._loop.is_running():
+            self._loop.call_soon_threadsafe(self._loop.stop)
+
         if self.running:
             try:
                 if messagebox.askokcancel("Quit", "A test is running. Quit anyway?"):
                     self.stop_test()
-                    self.root.destroy()
+                else:
+                    self._closing = False
+                    return
             except (KeyboardInterrupt, tk.TclError):
-                self.root.destroy()
-        else:
-            self.root.destroy()
+                pass
+
+        self.root.after_cancel("all")
+        self.root.withdraw()
+        self.root.destroy()
