@@ -146,7 +146,7 @@ class DashboardPage:
             self.start_btn.enable()
             self.stop_btn.disable()
 
-    def update_progress(self, info):
+    def update_progress(self, info: dict):
         pct = info.get("percent", 0) / 100.0
         self.progress_bar.set(min(pct, 1.0))
         self.progress_label.configure(text=f"{int(pct * 100)}%")

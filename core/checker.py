@@ -114,7 +114,7 @@ class CredentialChecker:
                          platform: Platform, proxy: Optional[str]) -> tuple[str, str]:
         if platform.auth_type == "steam":
             rsa_data = await steam_auth.get_rsa_key(session, email, proxy)
-            if not rsa_data.get("publickey_mod"):
+            if not rsa_data or not rsa_data.get("publickey_mod"):
                 return ResultStatus.ERROR, "Failed to get RSA key"
             encrypted_pw = steam_auth.encrypt_password(rsa_data, password)
             payload = steam_auth.build_steam_payload(

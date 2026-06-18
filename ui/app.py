@@ -195,11 +195,15 @@ class App:
                 pass
             return
 
-        settings = self.pages.get("settings")
-        proxy = settings.get_proxy() if settings else None
-        delay = settings.get_delay() if settings else 0.3
-        ignore_timeouts = settings.get_ignore_timeouts() if settings else False
-        max_concurrent = settings.get_concurrency() if settings else 10
+        settings_page = self.pages.get("settings")
+        if not settings_page:
+            from ui.pages.settings import SettingsPage
+            settings_page = SettingsPage(self)
+            self.pages["settings"] = settings_page
+        proxy = settings_page.get_proxy()
+        delay = settings_page.get_delay()
+        ignore_timeouts = settings_page.get_ignore_timeouts()
+        max_concurrent = settings_page.get_concurrency()
 
         if not proxy:
             proxy = self._ask_proxy_and_start()
@@ -267,7 +271,7 @@ class App:
         self.running = False
         self._update_button_states()
 
-        stats = self._results_mgr.get_stats() if self._results_mgr else {}
+        stats: dict = self._results_mgr.get_stats() if self._results_mgr else {}
         if "dashboard" in self.pages:
             self.pages["dashboard"].log(
                 f"\n{'=' * 50}"

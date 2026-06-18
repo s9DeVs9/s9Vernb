@@ -1,4 +1,4 @@
-
+from __future__ import annotations
 import logging
 import re
 from urllib.parse import urlparse
@@ -43,7 +43,6 @@ def parse_combolist(filepath: str) -> list:
 
     logger.info(f"Parsed {len(combos)} unique combos from {line_count} lines")
     return combos
-
 
 def parse_proxy_line(line: str) -> dict | None:
     line = line.strip()

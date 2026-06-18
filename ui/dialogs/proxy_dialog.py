@@ -115,11 +115,11 @@ class ProxyDialog:
 
         proxy_url = f"http://127.0.0.1:{server_port}"
 
-        settings = self.app.pages.get("settings")
-        if settings:
-            settings.proxy_entry.delete(0, "end")
-            settings.proxy_entry.insert(0, proxy_url)
-            settings.proxy_status.configure(
+        settings_page = self.app.pages.get("settings")
+        if settings_page is not None:
+            settings_page.proxy_entry.delete(0, "end")
+            settings_page.proxy_entry.insert(0, proxy_url)
+            settings_page.proxy_status.configure(
                 text=f"{self._proxy_count} proxies active on :{server_port}",
                 text_color=T.GREEN
             )

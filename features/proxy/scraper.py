@@ -3,7 +3,7 @@ import asyncio
 import aiohttp
 import logging
 import re
-from typing import Optional
+from typing import Any, Optional, cast
 
 logger = logging.getLogger("S9Checker")
 
@@ -42,7 +42,7 @@ class ProxyScraper:
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(url, proxy=self.proxy, ssl=False) as resp:
                     if resp.status == 200:
-                        data = await resp.json()
+                        data = cast(dict[str, Any], await resp.json())
                         for p in data.get("data", []):
                             proxies.append({
                                 "ip": p.get("ip"),
@@ -124,7 +124,7 @@ class ProxyScraper:
                     proxy=proxy_url, ssl=False,
                 ) as resp:
                     if resp.status == 200:
-                        data = await resp.json()
+                        data = cast(dict[str, Any], await resp.json())
                         proxy_dict["working"] = True
                         proxy_dict["your_ip"] = data.get("origin")
                     else:

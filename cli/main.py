@@ -283,6 +283,24 @@ def run_cli():
                 elif choice == "46":
                     from cli.handlers.rat import option_rat
                     option_rat()
+                elif choice == "47":
+                    from cli.handlers.security import option_header_analyzer
+                    option_header_analyzer()
+                elif choice == "48":
+                    from cli.handlers.security import option_apikey_scanner
+                    option_apikey_scanner()
+                elif choice == "49":
+                    from cli.handlers.security import option_link_tracker
+                    option_link_tracker()
+                elif choice == "50":
+                    from cli.handlers.security import option_social_media_scan
+                    option_social_media_scan()
+                elif choice == "51":
+                    from cli.handlers.security import option_leak_monitor
+                    option_leak_monitor()
+                elif choice == "52":
+                    from cli.handlers.security import option_ip_changer
+                    option_ip_changer()
                 elif choice.lower() == "a":
                     option_about()
                 elif choice == "0":

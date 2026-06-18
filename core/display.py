@@ -142,6 +142,12 @@ MENU_PAGE5 = [
     "  {cyan}{bold}[44]{reset} Proxy Scraper",
     "  {cyan}{bold}[45]{reset} Batch Runner",
     "  {cyan}{bold}[46]{reset} Remote Access Tool (RAT)",
+    "  {cyan}{bold}[47]{reset} HTTP Header Analyzer",
+    "  {cyan}{bold}[48]{reset} API Key Leaks Scanner",
+    "  {cyan}{bold}[49]{reset} Link Tracker / Info Harvester",
+    "  {cyan}{bold}[50]{reset} Social Media Scanner",
+    "  {cyan}{bold}[51]{reset} Data Leak Monitor",
+    "  {cyan}{bold}[52]{reset} IP Changer / Proxy Rotator",
 ]
 
 SEPARATOR = f"{C.DK_MAG}{'─' * 56}{C.RESET}"

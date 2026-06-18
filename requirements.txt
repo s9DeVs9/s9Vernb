@@ -6,4 +6,4 @@ mss>=9.0
 pyautogui>=0.9
 PyJWT>=2.8
 beautifulsoup4>=4.12
-lxml>=5.0
+lxml>=5.0-

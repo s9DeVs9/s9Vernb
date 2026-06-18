@@ -1,6 +1,7 @@
 
 import asyncio
 import os
+from typing import Any
 
 from core.display import C, type_line, SEPARATOR, print_banner
 from core.platform_utils import clear_screen
@@ -101,7 +102,7 @@ def option_batch_runner():
 
     type_line(f"\n  {C.GRAY}Running {len(runner.steps)} tools on {target}...{C.RESET}\n")
 
-    async def _progress(info):
+    async def _progress(info: dict[str, Any]) -> None:
         step = info.get("step", "")
         current = info.get("current", 0)
         total = info.get("total", 0)
