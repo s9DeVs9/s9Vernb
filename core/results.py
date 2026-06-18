@@ -40,8 +40,10 @@ class ResultsManager:
                     f"hits_{platform.lower().replace(' ', '_').replace('+', 'p')}.txt",
                     f"{email}:{password}\n"
                 )
-            elif status in (ResultStatus.INVALID,):
+            elif status in (ResultStatus.INVALID, ResultStatus.BLOCKED):
                 self.invalid.append(result)
+            elif status in (ResultStatus.TIMEOUT, ResultStatus.RATE_LIMITED):
+                self.errors.append(result)
             else:
                 self.errors.append(result)
 

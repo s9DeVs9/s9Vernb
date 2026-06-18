@@ -122,14 +122,17 @@ class SlideButton(ctk.CTkFrame):
         self._animate_slide(target)
 
     def _animate_slide(self, target):
-        diff = target - self._slide_pos
-        if abs(diff) < 2:
-            self._slide_pos = target
+        try:
+            diff = target - self._slide_pos
+            if abs(diff) < 2:
+                self._slide_pos = target
+                self._draw_bg()
+                return
+            self._slide_pos += diff * 0.25
             self._draw_bg()
-            return
-        self._slide_pos += diff * 0.25
-        self._draw_bg()
-        self._anim_id = self.after(16, lambda: self._animate_slide(target))
+            self._anim_id = self.after(16, lambda: self._animate_slide(target))
+        except tk.TclError:
+            pass
 
     def disable(self):
         self._enabled = False

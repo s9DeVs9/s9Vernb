@@ -185,28 +185,26 @@ def _import_validate_proxies():
         press_enter()
         return
 
-    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-        lines = [l.strip() for l in f if l.strip()]
+    from core.utils import load_proxies
+    proxies = load_proxies(filepath)
 
-    type_line(f"\n  {C.GRAY}Loaded {len(lines)} lines from {filepath}{C.RESET}")
-    print(f"\n  {C.GRAY}Format preview (first 5):{C.RESET}")
-    for line in lines[:5]:
-        print(f"    {C.DK_MAG}{line}{C.RESET}")
+    if not proxies:
+        type_line(f"  {C.DK_RED}No valid proxies found.{C.RESET}")
+        press_enter()
+        return
 
-    socks5_count = sum(1 for l in lines if l.startswith("socks5://"))
-    http_count = sum(1 for l in lines if l.startswith("http://"))
-    bare_count = len(lines) - socks5_count - http_count
-
-    print(f"\n  {C.GRAY}Detected formats:{C.RESET}")
-    print(f"    SOCKS5: {C.DK_MAG}{socks5_count}{C.RESET}")
-    print(f"    HTTP:   {C.DK_CYN}{http_count}{C.RESET}")
-    print(f"    Bare:   {C.GRAY}{bare_count}{C.RESET}")
+    type_line(f"\n  {C.GRAY}Loaded {len(proxies)} valid proxies from {filepath}{C.RESET}")
+    print(f"\n  {C.GRAY}Preview (first 5):{C.RESET}")
+    for p in proxies[:5]:
+        auth = f" {C.GRAY}{p['user']}:{p['pass']}{C.RESET}" if p.get("user") else ""
+        print(f"    {C.DK_CYN}{p['host']}:{p['port']}{C.RESET}{auth}")
 
     press_enter()
 
 
 def _start_proxy_rotation_server():
     from features.proxy.server import RotationProxyServer
+    from core.utils import load_proxies
 
     filepath = safe_input(f"{C.GRAY}Proxy file path: {C.RESET}").strip().strip('"')
     if not filepath or not os.path.exists(filepath):
@@ -214,17 +212,7 @@ def _start_proxy_rotation_server():
         press_enter()
         return
 
-    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-        raw_lines = [l.strip() for l in f if l.strip()]
-
-    proxies = []
-    for line in raw_lines:
-        parts = line.split(":")
-        if len(parts) >= 2:
-            proxies.append({"host": parts[0], "port": int(parts[1]),
-                            "user": parts[2] if len(parts) > 2 else None,
-                            "pass": parts[3] if len(parts) > 3 else None,
-                            "raw": line})
+    proxies = load_proxies(filepath)
 
     if not proxies:
         type_line(f"  {C.DK_RED}No valid proxies found.{C.RESET}")

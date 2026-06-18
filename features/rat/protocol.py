@@ -51,7 +51,7 @@ def recv_exact(sock, n: int) -> bytes:
 
 
 def recv_message(sock) -> tuple[str, dict]:
-    header = recv_exact(sock, 9)
+    header = recv_exact(sock, 10)
     if header[:5] != MAGIC:
         raise ValueError("Invalid protocol magic")
     type_id = struct.unpack("!B", header[5:6])[0]

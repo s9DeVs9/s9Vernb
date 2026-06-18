@@ -28,7 +28,7 @@ def animated_startup():
         else:
             print()
     type_line(f"{C.GRAY}{C.DIM}                    v2.0{C.RESET}", delay=0.005)
-    type_line(f"{C.DK_MAG}{'─' * 50}{C.RESET}", delay=0.002)
+    type_line(f"{C.DK_MAG}{'─' * 56}{C.RESET}", delay=0.002)
     time.sleep(0.05)
 
     from core.display import MENU_PAGE1
@@ -37,7 +37,7 @@ def animated_startup():
         line = raw.format(cyan=C.DK_CYN, bold=C.BOLD, reset=C.RESET)
         type_text(line, delay=0.003, end="\n")
         time.sleep(0.02)
-    nav = f"\n  {C.DK_CYN}{C.BOLD}[N]{C.RESET} Next page    {C.DK_CYN}{C.BOLD}[0]{C.RESET} Exit"
+    nav = f"\n  {C.DK_MAG}{'─' * 44}{C.RESET}\n  {C.DK_CYN}{C.BOLD}[N]{C.RESET} Next page    {C.DK_CYN}{C.BOLD}[0]{C.RESET} Exit"
     type_text(nav, delay=0.003, end="\n")
     print()
 
@@ -56,6 +56,7 @@ def option_about():
     print(f"  {C.DK_CYN}Discord:{C.RESET}  {C.DK_MAG}s9._.{C.RESET}")
     print(f"  {C.DK_CYN}GitHub:{C.RESET}   {C.DK_MAG}s9DeVs9{C.RESET}")
     print()
+    print(f"  {C.DK_MAG}{'─' * 40}{C.RESET}")
     print(f"  {C.GRAY}Built for authorized security testing only.{C.RESET}")
     print(f"  {C.GRAY}Unauthorized access to computer systems is illegal.{C.RESET}")
     from cli.prompts import press_enter

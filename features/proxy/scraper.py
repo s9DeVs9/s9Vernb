@@ -152,3 +152,14 @@ class ProxyScraper:
         if user and pwd:
             return f"{proto}://{user}:{pwd}@{ip}:{port}"
         return f"{proto}://{ip}:{port}"
+
+    def to_server_dict(self, proxy_dict: dict) -> dict:
+        return {
+            "host": proxy_dict.get("ip", ""),
+            "port": proxy_dict.get("port", 0),
+            "user": proxy_dict.get("user"),
+            "pass": proxy_dict.get("pass"),
+        }
+
+    def to_server_list(self, proxy_list: list[dict]) -> list[dict]:
+        return [self.to_server_dict(p) for p in proxy_list if p.get("ip") and p.get("port")]

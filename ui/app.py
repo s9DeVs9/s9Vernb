@@ -38,6 +38,7 @@ class App:
         self._ui_queue = queue.Queue()
         self._proxy_server = None
         self._closing = False
+        self._poll_after_id = None
         self.stats = {"completed": 0, "total": 0, "valid": 0, "invalid": 0,
                       "errors": 0, "speed": 0.0, "elapsed": 0.0, "percent": 0}
 
@@ -149,6 +150,8 @@ class App:
         self._loop.run_forever()
 
     def _poll_ui_queue(self):
+        if self._closing:
+            return
         try:
             while True:
                 msg_type, data = self._ui_queue.get_nowait()
@@ -161,7 +164,8 @@ class App:
         except queue.Empty:
             pass
         try:
-            self.root.after(50, self._poll_ui_queue)
+            if not self._closing:
+                self._poll_after_id = self.root.after(50, self._poll_ui_queue)
         except tk.TclError:
             pass
 
@@ -322,7 +326,7 @@ class App:
                 pass
 
     def _on_close(self):
-        if getattr(self, "_closing", False):
+        if self._closing:
             return
         self._closing = True
 
@@ -341,6 +345,17 @@ class App:
             except (KeyboardInterrupt, tk.TclError):
                 pass
 
-        self.root.after_cancel("all")
-        self.root.withdraw()
-        self.root.destroy()
+        try:
+            if hasattr(self, '_poll_after_id') and self._poll_after_id:
+                self.root.after_cancel(self._poll_after_id)
+        except tk.TclError:
+            pass
+        try:
+            self.root.after_cancel("all")
+        except tk.TclError:
+            pass
+        try:
+            self.root.withdraw()
+            self.root.destroy()
+        except tk.TclError:
+            pass

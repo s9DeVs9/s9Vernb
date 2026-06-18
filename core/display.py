@@ -144,14 +144,15 @@ MENU_PAGE5 = [
     "  {cyan}{bold}[46]{reset} Remote Access Tool (RAT)",
 ]
 
-SEPARATOR = f"{C.DK_MAG}{'─' * 50}{C.RESET}"
+SEPARATOR = f"{C.DK_MAG}{'─' * 56}{C.RESET}"
+THIN_SEP = f"{C.DK_MAG}{'─' * 40}{C.RESET}"
 
 
 def fmt_banner():
     return (
         f"{C.DK_MAG}{C.BOLD}{BANNER_RAW}{C.RESET}\n"
         f"{C.GRAY}{C.DIM}                    v2.0{C.RESET}\n"
-        f"{C.DK_MAG}{'─' * 50}{C.RESET}"
+        f"{C.DK_MAG}{'─' * 56}{C.RESET}"
     )
 
 
@@ -172,7 +173,8 @@ def fmt_menu(page=1):
         nav_parts.append(f"{C.DK_CYN}{C.BOLD}[N]{C.RESET} Next page")
     nav_parts.append(f"{C.DK_CYN}{C.BOLD}[0]{C.RESET} Exit")
 
-    lines.append(f"\n  {'    '.join(nav_parts)}")
+    lines.append(f"\n  {C.DK_MAG}{'─' * 44}{C.RESET}")
+    lines.append(f"  {'    '.join(nav_parts)}")
 
     return "\n".join(lines)
 
