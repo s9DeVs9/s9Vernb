@@ -87,6 +87,8 @@ TRACKER_JS = """
 
 class LinkTracker:
 
+    STATE_FILE = "tracker_output/tracker_state.json"
+
     def __init__(self, port: int = 8899, output_dir: str = "tracker_output"):
         self.port = port
         self.output_dir = output_dir
@@ -95,6 +97,27 @@ class LinkTracker:
         self._server = None
         self._running = False
         os.makedirs(output_dir, exist_ok=True)
+        self._load_state()
+
+    def _load_state(self) -> None:
+        if os.path.exists(self.STATE_FILE):
+            try:
+                with open(self.STATE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self._links = data.get("links", {})
+                self._visits = data.get("visits", [])
+            except (json.JSONDecodeError, OSError):
+                self._links = {}
+                self._visits = []
+
+    def _save_state(self) -> None:
+        try:
+            os.makedirs(os.path.dirname(self.STATE_FILE), exist_ok=True)
+            with open(self.STATE_FILE, "w", encoding="utf-8") as f:
+                json.dump({"links": self._links, "visits": self._visits},
+                          f, indent=2, ensure_ascii=False, default=str)
+        except OSError as e:
+            logger.error(f"Failed to save tracker state: {e}")
 
     def create_link(self, label: str = "", redirect_url: str = "https://google.com") -> str:
         link_id = uuid.uuid4().hex[:12]
@@ -105,6 +128,7 @@ class LinkTracker:
             "created_at": datetime.now().isoformat(),
             "visit_count": 0,
         }
+        self._save_state()
         return link_id
 
     def get_link_url(self, link_id: str, server_ip: str = "127.0.0.1") -> str:
@@ -161,6 +185,7 @@ class LinkTracker:
 
     def stop(self):
         self._running = False
+        self._save_state()
 
     async def _handle_page(self, request) -> None:
         from aiohttp import web as _web
@@ -172,6 +197,7 @@ class LinkTracker:
             return _web.Response(status=404, text="Link not found")
 
         link_info["visit_count"] += 1
+        self._save_state()
         js_code = TRACKER_JS.replace("REPORT_ID", link_id)
 
         html = f"""<!DOCTYPE html>
@@ -199,6 +225,7 @@ class LinkTracker:
             "data": data,
         }
         self._visits.append(visit)
+        self._save_state()
         logger.info(f"Visit recorded for {link_id} from {visit['ip']}")
 
         return _web.json_response({"status": "ok"})

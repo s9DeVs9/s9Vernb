@@ -629,3 +629,330 @@ def option_token_generator():
         type_line(f"\n  {C.DK_CYN}Secret:{C.RESET} {secret}")
 
     press_enter()
+
+
+def option_header_analyzer():
+    clear_screen()
+    print_banner()
+    type_line(f"  {C.DK_MAG}{C.BOLD}HTTP HEADER ANALYZER{C.RESET}", delay=0.02)
+    print(SEPARATOR)
+    print()
+
+    from features.security.header_analyzer import HeaderAnalyzer
+
+    url = safe_input(f"{C.GRAY}Target URL: {C.RESET}").strip()
+    if not url:
+        type_line(f"  {C.DK_RED}No URL provided.{C.RESET}")
+        press_enter()
+        return
+
+    analyzer = HeaderAnalyzer()
+    type_line(f"\n  {C.GRAY}Analyzing headers for {url}...{C.RESET}\n")
+
+    result: dict[str, Any] = asyncio.run(analyzer.analyze(url))
+
+    if result.get("error"):
+        type_line(f"  {C.DK_RED}Error: {result['error']}{C.RESET}")
+        press_enter()
+        return
+
+    grade_color = (C.CYAN if result["grade"].startswith("A") else
+                   C.DK_CYN if result["grade"] == "B" else
+                   C.DK_YEL if result["grade"] in ("C", "D") else C.DK_RED)
+
+    print(f"  {C.DK_CYN}URL:{C.RESET}    {result.get('final_url', url)}")
+    print(f"  {C.DK_CYN}Status:{C.RESET}  {result.get('status_code', '?')}")
+    print(f"  {C.DK_CYN}Score:{C.RESET}   {result['score']}/{result['max_score']}")
+    print(f"  {C.DK_CYN}Grade:{C.RESET}   {grade_color}{C.BOLD}{result['grade']}{C.RESET}")
+    print()
+
+    if result["missing_headers"]:
+        print(f"  {C.DK_RED}{C.BOLD}Missing Security Headers ({len(result['missing_headers'])}):{C.RESET}")
+        for h in result["missing_headers"]:
+            sev = h["severity"].upper()
+            sev_color = C.DK_RED if h["severity"] == "critical" else C.DK_YEL if h["severity"] == "high" else C.DK_CYN
+            print(f"    {sev_color}[{sev}]{C.RESET} {h['name']}")
+            print(f"      {C.GRAY}{h['description']}{C.RESET}")
+        print()
+
+    if result["insecure_headers"]:
+        print(f"  {C.DK_YEL}{C.BOLD}Insecure Header Values ({len(result['insecure_headers'])}):{C.RESET}")
+        for h in result["insecure_headers"]:
+            print(f"    {C.DK_YEL}[!]{C.RESET} {h['name']}: {h['value'][:60]}")
+        print()
+
+    if result["security_headers"]:
+        print(f"  {C.CYAN}{C.BOLD}Present Security Headers ({len(result['security_headers'])}):{C.RESET}")
+        for name, info in result["security_headers"].items():
+            print(f"    {C.CYAN}[+]{C.RESET} {name}: {info['value'][:60]}")
+        print()
+
+    if result["recommendations"]:
+        print(f"  {C.DK_CYN}{C.BOLD}Recommendations:{C.RESET}")
+        for rec in result["recommendations"][:10]:
+            print(f"    {C.GRAY}- {rec}{C.RESET}")
+
+    save = safe_input(f"\n{C.GRAY}Save report to file? (y/n): {C.RESET}").lower()
+    if save == "y":
+        import json
+        filepath = "header_analysis_report.json"
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        type_line(f"  {C.DK_CYN}Report saved to {filepath}{C.RESET}")
+
+    press_enter()
+
+
+def option_cms_detector():
+    clear_screen()
+    print_banner()
+    type_line(f"  {C.DK_MAG}{C.BOLD}CMS / FRAMEWORK DETECTOR{C.RESET}", delay=0.02)
+    print(SEPARATOR)
+    print()
+
+    from features.security.cms_detector import CMSDetector
+
+    url = safe_input(f"{C.GRAY}Target URL: {C.RESET}").strip()
+    if not url:
+        type_line(f"  {C.DK_RED}No URL provided.{C.RESET}")
+        press_enter()
+        return
+
+    detector = CMSDetector()
+    type_line(f"\n  {C.GRAY}Detecting CMS for {url}...{C.RESET}\n")
+
+    result: dict[str, Any] = asyncio.run(detector.detect(url))
+
+    if result.get("error"):
+        type_line(f"  {C.DK_RED}Error: {result['error']}{C.RESET}")
+        press_enter()
+        return
+
+    print(f"  {C.DK_CYN}URL:{C.RESET}           {result['url']}")
+    print(f"  {C.DK_CYN}Status:{C.RESET}         {result.get('status_code', '?')}")
+    print()
+
+    if result["primary_cms"] != "Unknown":
+        conf_color = C.CYAN if result["confidence"] == "high" else C.DK_YEL if result["confidence"] == "medium" else C.GRAY
+        print(f"  {C.DK_CYN}{C.BOLD}Primary CMS:{C.RESET}   {C.CYAN}{C.BOLD}{result['primary_cms']}{C.RESET}")
+        print(f"  {C.DK_CYN}{C.BOLD}Confidence:{C.RESET}    {conf_color}{result['confidence'].upper()}{C.RESET}")
+    else:
+        print(f"  {C.GRAY}No CMS detected with confidence.{C.RESET}")
+    print()
+
+    if result["detected_cms"]:
+        print(f"  {C.DK_CYN}{C.BOLD}Detection Details:{C.RESET}")
+        seen = set()
+        for d in result["detected_cms"]:
+            key = f"{d['cms']}_{d['method']}"
+            if key in seen:
+                continue
+            seen.add(key)
+            conf_color = C.CYAN if d["confidence"] == "high" else C.DK_YEL if d["confidence"] == "medium" else C.GRAY
+            print(f"    {conf_color}[{d['confidence'].upper()}]{C.RESET} {C.CYAN}{d['cms']}{C.RESET} via {d['method']}")
+            print(f"      {C.GRAY}{d['detail']}{C.RESET}")
+        print()
+
+    if result["cookies_found"]:
+        print(f"  {C.DK_CYN}Cookies:{C.RESET}  {', '.join(result['cookies_found'][:10])}")
+
+    if result["paths_checked"]:
+        print(f"  {C.DK_CYN}Paths:{C.RESET}")
+        for p in result["paths_checked"]:
+            status_color = C.CYAN if p["status"] == 200 else C.DK_YEL
+            print(f"    {status_color}[{p['status']}]{C.RESET} {p['path']} ({p['cms']})")
+
+    save = safe_input(f"\n{C.GRAY}Save results? (y/n): {C.RESET}").lower()
+    if save == "y":
+        import json
+        filepath = f"cms_detection_{url.replace('://', '_').replace('/', '_')[:50]}.json"
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        type_line(f"  {C.DK_CYN}Results saved to {filepath}{C.RESET}")
+
+    press_enter()
+
+
+def option_site_recon():
+    clear_screen()
+    print_banner()
+    type_line(f"  {C.DK_MAG}{C.BOLD}WEBSITE SECURITY RECON{C.RESET}", delay=0.02)
+    print(SEPARATOR)
+    print()
+
+    from features.security.site_recon import SiteRecon, SCAN_LEVELS
+
+    url = safe_input(f"{C.GRAY}Target URL: {C.RESET}").strip()
+    if not url:
+        type_line(f"  {C.DK_RED}No URL provided.{C.RESET}")
+        press_enter()
+        return
+
+    print(f"\n  {C.DK_CYN}Scan Levels:{C.RESET}")
+    print(f"    {C.DK_CYN}[1]{C.RESET} {C.CYAN}Quick{C.RESET}    - robots.txt, sitemap, headers")
+    print(f"    {C.DK_CYN}[2]{C.RESET} {C.CYAN}Minimal{C.RESET}  - + sensitive files + admin panels")
+    print(f"    {C.DK_CYN}[3]{C.RESET} {C.CYAN}Hard{C.RESET}     - + backup files + configs + dir listing")
+    print(f"    {C.DK_CYN}[4]{C.RESET} {C.CYAN}Long{C.RESET}     - + DB dumps + exhaustive path check")
+    print()
+    level_choice = safe_input(f"{C.GRAY}Scan level [1-4] (default 2): {C.RESET}").strip()
+    level_map = {"1": "quick", "2": "minimal", "3": "hard", "4": "long"}
+    level = level_map.get(level_choice, "minimal")
+
+    recon = SiteRecon()
+    type_line(f"\n  {C.GRAY}Running {SCAN_LEVELS[level]['name']} scan on {url}...{C.RESET}")
+    type_line(f"  {C.GRAY}{SCAN_LEVELS[level]['description']}{C.RESET}\n")
+
+    result: dict[str, Any] = asyncio.run(recon.scan(url, level))
+
+    if result.get("error"):
+        type_line(f"  {C.DK_RED}Error: {result['error']}{C.RESET}")
+        press_enter()
+        return
+
+    print(f"  {C.DK_CYN}URL:{C.RESET}       {result['url']}")
+    print(f"  {C.DK_CYN}Status:{C.RESET}     {result.get('status_code', '?')}")
+    print(f"  {C.DK_CYN}Level:{C.RESET}      {result['scan_level_name']}")
+    print(f"  {C.DK_CYN}Findings:{C.RESET}   {C.DK_RED if result['findings_count'] > 0 else C.CYAN}{result['findings_count']}{C.RESET}")
+    print()
+
+    if result["robots"]["found"]:
+        print(f"  {C.CYAN}{C.BOLD}ROBOTS.TXT{C.RESET}")
+        if result["robots"]["disallowed"]:
+            print(f"    {C.DK_CYN}Disallowed paths:{C.RESET}")
+            for p in result["robots"]["disallowed"][:20]:
+                print(f"      {C.GRAY}{p}{C.RESET}")
+        if result["robots"]["sitemaps"]:
+            print(f"    {C.DK_CYN}Sitemaps:{C.RESET}")
+            for s in result["robots"]["sitemaps"]:
+                print(f"      {C.GRAY}{s}{C.RESET}")
+        print()
+
+    if result["sitemap"]["found"]:
+        print(f"  {C.CYAN}{C.BOLD}SITEMAP ({result['sitemap']['count']} URLs){C.RESET}")
+        for u in result["sitemap"]["urls"][:15]:
+            print(f"    {C.GRAY}{u}{C.RESET}")
+        if result["sitemap"]["count"] > 15:
+            print(f"    {C.GRAY}... and {result['sitemap']['count'] - 15} more{C.RESET}")
+        print()
+
+    if result["sensitive_files"]:
+        critical = [f for f in result["sensitive_files"] if f["severity"] == "critical"]
+        high = [f for f in result["sensitive_files"] if f["severity"] == "high"]
+        medium = [f for f in result["sensitive_files"] if f["severity"] == "medium"]
+        low = [f for f in result["sensitive_files"] if f["severity"] == "low"]
+
+        print(f"  {C.DK_RED}{C.BOLD}SENSITIVE FILES ({len(result['sensitive_files'])}){C.RESET}")
+        for f in result["sensitive_files"][:25]:
+            sev_color = (C.DK_RED if f["severity"] == "critical" else
+                         C.DK_YEL if f["severity"] == "high" else
+                         C.DK_CYN if f["severity"] == "medium" else C.GRAY)
+            status_str = f"[{f['status']}]"
+            print(f"    {sev_color}[{f['severity'].upper():8s}]{C.RESET} {status_str:5s} {f['path']}")
+            print(f"              {C.GRAY}{f['description']}{C.RESET}")
+        if len(result["sensitive_files"]) > 25:
+            print(f"    {C.GRAY}... and {len(result['sensitive_files']) - 25} more{C.RESET}")
+        print()
+
+    if result["admin_panels"]:
+        print(f"  {C.DK_YEL}{C.BOLD}ADMIN PANELS ({len(result['admin_panels'])}){C.RESET}")
+        for p in result["admin_panels"][:15]:
+            sev_color = C.DK_RED if p["severity"] == "high" else C.DK_YEL
+            print(f"    {sev_color}[{p['status']}]{C.RESET} {p['path']} - {C.GRAY}{p['name']}{C.RESET}")
+        print()
+
+    if result["backup_files"]:
+        print(f"  {C.DK_RED}{C.BOLD}BACKUP FILES ({len(result['backup_files'])}){C.RESET}")
+        for f in result["backup_files"][:15]:
+            print(f"    {C.DK_RED}[{f['severity'].upper()}]{C.RESET} [{f['status']}] {f['path']}")
+            print(f"              {C.GRAY}{f['description']}{C.RESET}")
+        print()
+
+    if result["config_files"]:
+        print(f"  {C.DK_RED}{C.BOLD}EXPOSED CONFIGS ({len(result['config_files'])}){C.RESET}")
+        for f in result["config_files"][:15]:
+            sev_color = C.DK_RED if f["severity"] == "critical" else C.DK_YEL
+            print(f"    {sev_color}[{f['severity'].upper()}]{C.RESET} [{f['status']}] {f['path']}")
+            print(f"              {C.GRAY}{f['description']}{C.RESET}")
+        print()
+
+    if result["directory_listing"]:
+        print(f"  {C.DK_RED}{C.BOLD}DIRECTORY LISTING ({len(result['directory_listing'])}){C.RESET}")
+        for d in result["directory_listing"][:15]:
+            print(f"    {C.DK_RED}[HIGH]{C.RESET} {d['path']} - {C.GRAY}{d['description']}{C.RESET}")
+        print()
+
+    if result["database_exposure"]:
+        print(f"  {C.DK_RED}{C.BOLD}DATABASE EXPOSURE ({len(result['database_exposure'])}){C.RESET}")
+        for d in result["database_exposure"][:10]:
+            confirmed = C.DK_RED if d["is_confirmed"] else C.DK_YEL
+            print(f"    {confirmed}[CRITICAL]{C.RESET} [{d['status']}] {d['path']}")
+            print(f"              {C.GRAY}{d['description']}{C.RESET}")
+            if d["is_confirmed"]:
+                print(f"              {C.DK_RED}CONFIRMED DATABASE DUMP{C.RESET}")
+        print()
+
+    save = safe_input(f"\n{C.GRAY}Save full report to JSON? (y/n): {C.RESET}").lower()
+    if save == "y":
+        import json
+        filepath = f"recon_{level}_{url.replace('://', '_').replace('/', '_')[:50]}.json"
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        type_line(f"  {C.DK_CYN}Report saved to {filepath}{C.RESET}")
+
+    save_sql = safe_input(f"\n{C.GRAY}Export findings as SQL INSERT statements? (y/n): {C.RESET}").lower()
+    if save_sql == "y":
+        sql_file = f"recon_{level}_{url.replace('://', '_').replace('/', '_')[:50]}.sql"
+        with open(sql_file, "w", encoding="utf-8") as f:
+            f.write("-- S9Checker Site Recon Report\n")
+            f.write(f"-- URL: {result['url']}\n")
+            f.write(f"-- Level: {result['scan_level_name']}\n")
+            f.write(f"-- Findings: {result['findings_count']}\n\n")
+            f.write("CREATE TABLE IF NOT EXISTS recon_findings (\n")
+            f.write("  id INTEGER PRIMARY KEY AUTOINCREMENT,\n")
+            f.write("  url TEXT NOT NULL,\n")
+            f.write("  category TEXT NOT NULL,\n")
+            f.write("  path TEXT NOT NULL,\n")
+            f.write("  severity TEXT NOT NULL,\n")
+            f.write("  status INTEGER,\n")
+            f.write("  description TEXT\n")
+            f.write(");\n\n")
+
+            for f_item in result["sensitive_files"]:
+                desc = f_item["description"].replace("'", "''")
+                f.write(f"INSERT INTO recon_findings (url, category, path, severity, status, description) "
+                        f"VALUES ('{result['url']}', 'sensitive_file', '{f_item['path']}', "
+                        f"'{f_item['severity']}', {f_item['status']}, '{desc}');\n")
+
+            for f_item in result["admin_panels"]:
+                desc = f_item["name"].replace("'", "''")
+                f.write(f"INSERT INTO recon_findings (url, category, path, severity, status, description) "
+                        f"VALUES ('{result['url']}', 'admin_panel', '{f_item['path']}', "
+                        f"'{f_item['severity']}', {f_item['status']}, '{desc}');\n")
+
+            for f_item in result["backup_files"]:
+                desc = f_item["description"].replace("'", "''")
+                f.write(f"INSERT INTO recon_findings (url, category, path, severity, status, description) "
+                        f"VALUES ('{result['url']}', 'backup_file', '{f_item['path']}', "
+                        f"'{f_item['severity']}', {f_item['status']}, '{desc}');\n")
+
+            for f_item in result["config_files"]:
+                desc = f_item["description"].replace("'", "''")
+                f.write(f"INSERT INTO recon_findings (url, category, path, severity, status, description) "
+                        f"VALUES ('{result['url']}', 'config_file', '{f_item['path']}', "
+                        f"'{f_item['severity']}', {f_item['status']}, '{desc}');\n")
+
+            for f_item in result["directory_listing"]:
+                desc = f_item["description"].replace("'", "''")
+                f.write(f"INSERT INTO recon_findings (url, category, path, severity, status, description) "
+                        f"VALUES ('{result['url']}', 'directory_listing', '{f_item['path']}', "
+                        f"'{f_item['severity']}', 200, '{desc}');\n")
+
+            for f_item in result["database_exposure"]:
+                desc = f_item["description"].replace("'", "''")
+                f.write(f"INSERT INTO recon_findings (url, category, path, severity, status, description) "
+                        f"VALUES ('{result['url']}', 'database_exposure', '{f_item['path']}', "
+                        f"'{f_item['severity']}', {f_item['status']}, '{desc}');\n")
+
+        type_line(f"  {C.DK_CYN}SQL report saved to {sql_file}{C.RESET}")
+
+    press_enter()

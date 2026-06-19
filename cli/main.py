@@ -301,6 +301,15 @@ def run_cli():
                 elif choice == "52":
                     from cli.handlers.security import option_ip_changer
                     option_ip_changer()
+                elif choice == "53":
+                    from cli.handlers.security import option_cms_detector
+                    option_cms_detector()
+                elif choice == "54":
+                    from cli.handlers.security import option_site_recon
+                    option_site_recon()
+                elif choice == "55":
+                    from cli.handlers.security import option_header_analyzer
+                    option_header_analyzer()
                 elif choice.lower() == "a":
                     option_about()
                 elif choice == "0":

